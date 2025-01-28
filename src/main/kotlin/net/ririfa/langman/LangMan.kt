@@ -1,5 +1,9 @@
+@file:Suppress("DuplicatedCode")
+
 package net.ririfa.langman
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import io.github.classgraph.ClassGraph
 import io.github.classgraph.ClassInfoList
 import net.ririfa.langman.dummy.DummyMessageKey
@@ -8,6 +12,7 @@ import org.slf4j.LoggerFactory
 import org.yaml.snakeyaml.Yaml
 import java.io.File
 import kotlin.reflect.KClass
+import kotlin.reflect.full.isSuperclassOf
 
 @Suppress("UNCHECKED_CAST", "unused")
 open class LangMan<P : IMessageProvider<C>, C> private constructor(
@@ -110,28 +115,69 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		val subClasses = scanResult.getSubclasses(MessageKey::class.java.name)
 
 		langs.forEach { lang ->
-			val file = File(dir, "$lang.yml")
+			val file = File(dir, "$lang.${type.fileExtension}")
 			if (!file.exists()) {
 				logger.logIfDebug("File not found for language: $lang")
 				return@forEach
 			}
 
-			val yaml = Yaml()
-			val data = file.inputStream().use { yaml.load<Map<String, Any>>(it) ?: emptyMap() }
+			val data = when (type) {
+				InitType.YAML -> {
+					val yaml = Yaml()
+					file.inputStream().use { yaml.load<Map<String, Any>>(it) ?: emptyMap() }
+				}
+				InitType.JSON -> {
+					val gson = Gson()
+					val typeToken = object : TypeToken<Map<String, Any>>() {}.type
+					gson.fromJson<Map<String, Any>>(file.reader(), typeToken) ?: emptyMap()
+				}
+			}
 
 			i?.startLoad(data, subClasses, lang)
 		}
 	}
 
-	inner class YAML : I {
+	inner class YAML internal constructor(): I {
 		override fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList, lang: String) {
 			logger.logIfDebug("Starting load for language: $lang")
+
+			val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
+
+			messageKeyClass.forEach { classInfo ->
+				val clazz = Class.forName(classInfo.name).kotlin
+				if (!expectedMKType.isSuperclassOf(clazz)) return@forEach
+
+				val instance = clazz.objectInstance as? MessageKey<P, C> ?: return@forEach
+
+				val keyName = convertToKeyName(clazz)
+
+				val value = getNestedValue(data, keyName)
+				if (value != null) {
+					langData[instance] = value.toString()
+				}
+			}
 		}
 	}
 
-	inner class JSON : I {
+	inner class JSON internal constructor() : I {
 		override fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList, lang: String) {
+			logger.logIfDebug("Starting JSON load for language: $lang")
 
+			val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
+
+			messageKeyClass.forEach { classInfo ->
+				val clazz = Class.forName(classInfo.name).kotlin
+				if (!expectedMKType.isSuperclassOf(clazz)) return@forEach
+
+				val instance = clazz.objectInstance as? MessageKey<P, C> ?: return@forEach
+
+				val keyName = convertToKeyName(clazz)
+
+				val value = getNestedValue(data, keyName)
+				if (value != null) {
+					langData[instance] = value.toString()
+				}
+			}
 		}
 	}
 
@@ -139,7 +185,23 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList,lang: String = "en")
 	}
 
-	private fun normalizeKey(key: String): String {
-		return key.lowercase().replace("_", "")
+	fun convertToKeyName(clazz: KClass<*>): String {
+		return clazz.qualifiedName!!
+			.removePrefix("${expectedMKType.qualifiedName}.")
+			.replace('$', '.')
+			.uppercase()
+	}
+
+	fun getNestedValue(map: Map<String, Any>, keyPath: String): Any? {
+		val keys = keyPath.split(".")
+		var current: Any? = map
+		for (key in keys) {
+			if (current is Map<*, *>) {
+				current = current[key]
+			} else {
+				return null
+			}
+		}
+		return current
 	}
 }

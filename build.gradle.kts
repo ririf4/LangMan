@@ -34,6 +34,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
     implementation("org.yaml:snakeyaml:2.3")
     implementation("org.slf4j:slf4j-api:2.1.0-alpha1")
+    implementation("com.google.code.gson:gson:2.11.0")
 }
 
 java {
