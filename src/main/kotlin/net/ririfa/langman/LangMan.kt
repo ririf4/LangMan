@@ -22,7 +22,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	private var packName: String = ""
 
 	var isDebug: Boolean = false
-	var i: I? = null
 	var t: InitType? = null
 
 	companion object {
@@ -102,11 +101,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	fun init(type: InitType, dir: File, langs: List<String>) {
 		logger.logIfDebug("Starting initialisation with type: $type")
 
-		i = when (type) {
-			InitType.YAML -> YAML()
-			InitType.JSON -> JSON()
-		}
-
 		val scanResult = ClassGraph()
 			.enableClassInfo()
 			.acceptPackages(packName)
@@ -133,57 +127,30 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 				}
 			}
 
-			i?.startLoad(data, subClasses, lang)
+			startLoad(data, subClasses, lang)
 		}
 	}
 
-	inner class YAML internal constructor(): I {
-		override fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList, lang: String) {
-			logger.logIfDebug("Starting load for language: $lang")
+	fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList, lang: String) {
+		logger.logIfDebug("Starting load for language: $lang")
 
-			val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
+		val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
 
-			messageKeyClass.forEach { classInfo ->
-				val clazz = Class.forName(classInfo.name).kotlin
-				if (!expectedMKType.isSuperclassOf(clazz)) return@forEach
+		messageKeyClass.forEach { classInfo ->
+			val clazz = Class.forName(classInfo.name).kotlin
+			if (!expectedMKType.isSuperclassOf(clazz)) return@forEach
 
-				val instance = clazz.objectInstance as? MessageKey<P, C> ?: return@forEach
+			val instance = clazz.objectInstance as? MessageKey<P, C> ?: return@forEach
 
-				val keyName = convertToKeyName(clazz)
+			val keyName = convertToKeyName(clazz)
 
-				val value = getNestedValue(data, keyName)
-				if (value != null) {
-					langData[instance] = value.toString()
-				}
+			val value = getNestedValue(data, keyName)
+			if (value != null) {
+				langData[instance] = value.toString()
 			}
 		}
 	}
 
-	inner class JSON internal constructor() : I {
-		override fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList, lang: String) {
-			logger.logIfDebug("Starting JSON load for language: $lang")
-
-			val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
-
-			messageKeyClass.forEach { classInfo ->
-				val clazz = Class.forName(classInfo.name).kotlin
-				if (!expectedMKType.isSuperclassOf(clazz)) return@forEach
-
-				val instance = clazz.objectInstance as? MessageKey<P, C> ?: return@forEach
-
-				val keyName = convertToKeyName(clazz)
-
-				val value = getNestedValue(data, keyName)
-				if (value != null) {
-					langData[instance] = value.toString()
-				}
-			}
-		}
-	}
-
-	interface I {
-		fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList,lang: String = "en")
-	}
 
 	fun convertToKeyName(clazz: KClass<*>): String {
 		return clazz.qualifiedName!!
@@ -195,11 +162,23 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	fun getNestedValue(map: Map<String, Any>, keyPath: String): Any? {
 		val keys = keyPath.split(".")
 		var current: Any? = map
+
 		for (key in keys) {
-			if (current is Map<*, *>) {
-				current = current[key]
-			} else {
-				return null
+			current = when (current) {
+				is Map<*, *> -> {
+					current[key]
+				}
+
+				is List<*> -> {
+					val index = key.removePrefix("ITEM").toIntOrNull()
+					if (index != null && index in current.indices) {
+						current[index]
+					} else {
+						return null
+					}
+				}
+
+				else -> return null
 			}
 		}
 		return current
