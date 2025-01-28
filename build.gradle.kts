@@ -30,7 +30,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.reflections:reflections:0.10.2")
+    implementation("io.github.classgraph:classgraph:4.8.179")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
     implementation("org.yaml:snakeyaml:2.3")
     implementation("org.slf4j:slf4j-api:2.1.0-alpha1")
