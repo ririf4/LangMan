@@ -151,7 +151,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		}
 	}
 
-
 	fun convertToKeyName(clazz: KClass<*>): String {
 		return clazz.qualifiedName!!
 			.removePrefix("${expectedMKType.qualifiedName}.")
@@ -170,7 +169,14 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 				}
 
 				is List<*> -> {
-					val index = key.removePrefix("ITEM").toIntOrNull()
+					val index = when {
+						// Support for "ITEM1", "ITEM2", etc.
+						key.startsWith("ITEM") -> key.removePrefix("ITEM").toIntOrNull()
+						// Support for "1", "2", etc.
+						key.toIntOrNull() != null -> key.toInt()
+						else -> null
+					}
+
 					if (index != null && index in current.indices) {
 						current[index]
 					} else {
