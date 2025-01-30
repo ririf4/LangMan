@@ -1,0 +1,50 @@
+Terms and Conditions for Use, Reproduction, and Distribution
+
+1. Definitions
+"Licensor" refers to the original developer or entity that publishes the software
+under this license.
+"Contributor" refers to any individual or entity who contributes to the project
+via Pull Requests (PRs) or Issues.
+"You" (or "Your") refers to the individual or entity exercising the permissions
+granted by this License.
+
+2. Grant of License
+Subject to the terms and conditions of this License, the Licensor hereby grants You
+a perpetual, worldwide, non-exclusive, royalty-free license to use, modify, reproduce,
+prepare derivative works of, publicly display, publicly perform, sublicense, and
+distribute the software and such derivative works for any purpose, without restriction.
+
+3. No Attribution Required
+You are not required to provide attribution to the original developer or SwiftStormStudio
+when using, modifying, or distributing this software. However, crediting the original
+developers is appreciated but entirely optional.
+
+4. Disclaimer of Liability
+This software is provided "AS IS", without warranty of any kind, express or implied,
+including but not limited to the warranties of merchantability, fitness for a particular
+purpose, and noninfringement. In no event shall the Licensor be liable for any claim,
+damages, or other liability, whether in an action of contract, tort, or otherwise, arising
+from, out of, or in connection with the software or the use or other dealings in the software.
+
+5. Forking and License Retention
+You may fork, modify, and distribute the project under any conditions, including
+changing the license of the derived works. This License does not impose any restrictions
+on derivative works.
+
+6. Patent Rights
+Subject to the terms and conditions of this License, each Contributor grants to You
+a perpetual, worldwide, non-exclusive, royalty-free license to make, have made, use,
+offer to sell, sell, import, and otherwise transfer the work and derivative works based
+upon the work. If You institute patent litigation (including a cross-claim or counterclaim
+in a lawsuit) against any entity alleging that the work or a contribution incorporated
+within the work constitutes patent infringement, then any patent licenses granted to You
+under this License for that work shall terminate as of the date such litigation is filed.
+
+7. Termination of License
+This License will remain in effect indefinitely and cannot be revoked. Once the software
+has been distributed under this License, all granted permissions remain in effect
+regardless of any changes made by the Licensor.
+
+8. License Updates
+This License is provided as-is and does not require updates. The Licensor does not
+reserve any right to alter or modify this License after its initial release.
