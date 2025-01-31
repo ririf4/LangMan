@@ -2,7 +2,7 @@
 
 LangMan is a language manager for your project. It helps you to manage your language files and translations.
 
-Latest version: ![Maven metadata URL](https://img.shields.io/maven-metadata/v?metadataUrl=https://repo1.maven.org/maven/net/rk4z/langman/maven-metadata.xml&style=plastic&logo=sonatype&label=Central&color=00FF87%20)
+Latest version: ![Dynamic XML Badge](https://img.shields.io/badge/dynamic/xml?url=https%3A%2F%2Frepo.ririfa.net%2Frepository%2Fmaven-public%2Fnet%2Fririfa%2Flangman%2Fmaven-metadata.xml&query=%2Fmetadata%2Fversioning%2Flatest&prefix=v&style=plastic&logo=medusa&logoColor=56ba5e&label=latest%20version&color=56ba5e)
 
 ## Installation
 

@@ -5,6 +5,7 @@ import org.slf4j.Logger
 import kotlin.reflect.KClass
 import kotlin.reflect.full.createInstance
 
+
 fun Logger.logIfDebug(message: String, level: LogLevel = LogLevel.INFO) {
 	if (LangMan.getUnsafe().isDebug) {
 		when (level) {

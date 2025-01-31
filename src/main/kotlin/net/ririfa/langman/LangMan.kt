@@ -1,5 +1,3 @@
-@file:Suppress("DuplicatedCode")
-
 package net.ririfa.langman
 
 import com.google.gson.Gson
@@ -11,9 +9,18 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.yaml.snakeyaml.Yaml
 import java.io.File
+import java.util.Locale
+import kotlin.collections.get
 import kotlin.reflect.KClass
 import kotlin.reflect.full.isSuperclassOf
 
+/**
+ * Manages language translations and message localization.
+ * @param P The type of the message provider.
+ * @param C The type of the text component.
+ * @property textComponentFactory Factory function to create a text component.
+ * @property expectedMKType Expected type of the message key for type safety.
+ */
 @Suppress("UNCHECKED_CAST", "unused")
 open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	val textComponentFactory: (String) -> C,
@@ -21,21 +28,20 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 ) {
 	private var packName: String = ""
 
+	/** Flag to enable debug mode. */
 	var isDebug: Boolean = false
+
+	/** The initialization type used. */
 	var t: InitType? = null
 
 	companion object {
+		/** Logger instance for debugging and logging purposes. */
 		val logger: Logger = LoggerFactory.getLogger("LangMan")
 
 		@Suppress("CAST_NEVER_SUCCEEDS")
 		private var instance: LangMan<*, *> =
 			/**
-			 * This is a dummy instance.
-			 *
-			 * To set the initial value to null, use ‘?’ must be added, but,
-			 * although ‘?’ the IDE will point out the possibility of it being null, even if it has been successfully initialised.
-			 *
-			 * So I assign a dummy instance as the initial value.
+			 * A dummy instance used to avoid null initialization issues.
 			 */
 			LangMan<IMessageProvider<Nothing>, Nothing>(
 				{ it as Nothing },
@@ -43,9 +49,11 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 			)
 
 		/**
-		 * Initialises the LangMan, create a new instance, and set it as the current instance.
-		 * @param textComponentFactory The factory function to create the message content.
-		 * @param expectedType The expected type of the message key (To keep the type safety).
+		 * Initializes a new instance of LangMan and sets it as the current instance.
+		 * @param textComponentFactory Factory function to create message content.
+		 * @param expectedType The expected message key type to ensure type safety.
+		 * @param packageName The base package name to scan for message keys.
+		 * @param isDebug Whether debug mode should be enabled.
 		 * @return The newly created LangMan instance.
 		 */
 		@JvmStatic
@@ -66,8 +74,9 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		}
 
 		/**
-		 * Gets the current LangMan instance.
+		 * Retrieves the current instance of LangMan.
 		 * @return The current LangMan instance.
+		 * @deprecated Use [getOrNull] instead.
 		 */
 		@Deprecated("Use getOrNull() instead", ReplaceWith("getOrNull()"))
 		@JvmStatic
@@ -76,30 +85,46 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		}
 
 		/**
-		 * Gets the current LangMan instance if it is initialised.
-		 * @return The current LangMan instance, if it is initialised, otherwise null.
+		 * Retrieves the current instance of LangMan if initialized.
+		 * @return The current LangMan instance, or null if not initialized.
 		 */
 		@JvmStatic
 		fun <P : IMessageProvider<C>, C> getOrNull(): LangMan<P, C>? {
 			return if (isInitialized()) instance as? LangMan<P, C> else null
 		}
 
+		/**
+		 * Retrieves the LangMan instance without type safety.
+		 * @return The current LangMan instance.
+		 * @deprecated Use [getOrNull] instead.
+		 */
 		@Deprecated("Use getOrNull() instead", ReplaceWith("getOrNull()"))
 		@JvmStatic
 		fun getUnsafe(): LangMan<*, *> {
 			return instance
 		}
 
+		/**
+		 * Checks if LangMan has been initialized.
+		 * @return True if initialized, false otherwise.
+		 */
 		@JvmStatic
 		fun isInitialized(): Boolean {
 			return instance.expectedMKType != DummyMessageKey::class
 		}
 	}
 
+	/** Stores the localized messages for different languages. */
 	val messages: MutableMap<String, MutableMap<MessageKey<P, C>, String>> = mutableMapOf()
 
+	/**
+	 * Initializes the language manager by loading translations from files.
+	 * @param type The type of initialization (YAML or JSON).
+	 * @param dir The directory containing language files.
+	 * @param langs The list of language codes to load.
+	 */
 	fun init(type: InitType, dir: File, langs: List<String>) {
-		logger.logIfDebug("Starting initialisation with type: $type")
+		logger.logIfDebug("Starting initialization with type: $type")
 
 		val scanResult = ClassGraph()
 			.enableClassInfo()
@@ -116,21 +141,20 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 			}
 
 			val data = when (type) {
-				InitType.YAML -> {
-					val yaml = Yaml()
-					file.inputStream().use { yaml.load<Map<String, Any>>(it) ?: emptyMap() }
-				}
-				InitType.JSON -> {
-					val gson = Gson()
-					val typeToken = object : TypeToken<Map<String, Any>>() {}.type
-					gson.fromJson<Map<String, Any>>(file.reader(), typeToken) ?: emptyMap()
-				}
+				InitType.YAML -> Yaml().load<Map<String, Any>>(file.inputStream()) ?: emptyMap()
+				InitType.JSON -> Gson().fromJson<Map<String, Any>>(file.reader(), object : TypeToken<Map<String, Any>>() {}.type) ?: emptyMap()
 			}
 
 			startLoad(data, subClasses, lang)
 		}
 	}
 
+	/**
+	 * Loads message keys and their corresponding translations from data.
+	 * @param data The loaded translation data.
+	 * @param messageKeyClass The class information of message keys.
+	 * @param lang The language code being loaded.
+	 */
 	fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList, lang: String) {
 		logger.logIfDebug("Starting load for language: $lang")
 
@@ -141,24 +165,23 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 			if (!expectedMKType.isSuperclassOf(clazz)) return@forEach
 
 			val instance = clazz.objectInstance as? MessageKey<P, C> ?: return@forEach
-
 			val keyName = convertToKeyName(clazz)
-
 			val value = getNestedValue(data, keyName)
+
 			if (value != null) {
 				langData[instance] = value.toString()
 			}
 		}
 	}
 
-	fun convertToKeyName(clazz: KClass<*>): String {
+	private fun convertToKeyName(clazz: KClass<*>): String {
 		return clazz.qualifiedName!!
 			.removePrefix("${expectedMKType.qualifiedName}.")
 			.replace('$', '.')
 			.uppercase()
 	}
 
-	fun getNestedValue(map: Map<String, Any>, keyPath: String): Any? {
+	private fun getNestedValue(map: Map<String, Any>, keyPath: String): Any? {
 		val keys = keyPath.split(".")
 		var current: Any? = map
 
@@ -188,5 +211,30 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 			}
 		}
 		return current
+	}
+
+	/**
+	 * Retrieves a system message using the default locale.
+	 * @param key The message key.
+	 * @param args Arguments to format the message.
+	 * @return The formatted system message.
+	 */
+	fun getSysMessage(key: MessageKey<*, *>, vararg args: Any): String {
+		val lang = Locale.getDefault().language
+		val message = messages[lang]?.get(key)
+		return message?.let { String.format(it, *args) } ?: key.rc()
+	}
+
+	/**
+	 * Retrieves a system message using a specific language code.
+	 * @param key The message key.
+	 * @param lang The language code.
+	 * @param args Arguments to format the message.
+	 * @return The formatted system message.
+	 */
+	fun getSysMessageByLangCode(key: MessageKey<*, *>, lang: String, vararg args: Any): String {
+		val message = messages[lang]?.get(key)
+		val text = message?.let { String.format(it, *args) } ?: return key.rc()
+		return text
 	}
 }
