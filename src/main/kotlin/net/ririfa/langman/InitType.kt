@@ -4,5 +4,5 @@ enum class InitType(val fileExtension: String) {
 	YAML("yml"),
 	JSON("json"),;
 
-	//TODO: TOMLを実装したい
+	//TODO: I wanna implement TOML.
 }

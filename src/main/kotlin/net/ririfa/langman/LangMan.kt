@@ -2,8 +2,6 @@ package net.ririfa.langman
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import io.github.classgraph.ClassGraph
-import io.github.classgraph.ClassInfoList
 import net.ririfa.langman.dummy.DummyMessageKey
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -12,7 +10,6 @@ import java.io.File
 import java.util.Locale
 import kotlin.collections.get
 import kotlin.reflect.KClass
-import kotlin.reflect.full.isSuperclassOf
 
 /**
  * Manages language translations and message localization.
@@ -126,13 +123,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	fun init(type: InitType, dir: File, langs: List<String>) {
 		logger.logIfDebug("Starting initialization with type: $type")
 
-		val scanResult = ClassGraph()
-			.enableClassInfo()
-			.acceptPackages(packName)
-			.scan()
-
-		val subClasses = scanResult.getSubclasses(MessageKey::class.java.name)
-
 		langs.forEach { lang ->
 			val file = File(dir, "$lang.${type.fileExtension}")
 			if (!file.exists()) {
@@ -145,31 +135,28 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 				InitType.JSON -> Gson().fromJson<Map<String, Any>>(file.reader(), object : TypeToken<Map<String, Any>>() {}.type) ?: emptyMap()
 			}
 
-			startLoad(data, subClasses, lang)
+			startLoad(data, lang)
 		}
 	}
 
 	/**
 	 * Loads message keys and their corresponding translations from data.
 	 * @param data The loaded translation data.
-	 * @param messageKeyClass The class information of message keys.
 	 * @param lang The language code being loaded.
 	 */
-	fun startLoad(data: Map<String, Any>, messageKeyClass: ClassInfoList, lang: String) {
+	fun startLoad(data: Map<String, Any>, lang: String) {
 		logger.logIfDebug("Starting load for language: $lang")
 
 		val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
 
-		messageKeyClass.forEach { classInfo ->
-			val clazz = Class.forName(classInfo.name).kotlin
-			if (!expectedMKType.isSuperclassOf(clazz)) return@forEach
+		val messageKeys = getMessageKeys()
 
-			val instance = clazz.objectInstance as? MessageKey<P, C> ?: return@forEach
-			val keyName = convertToKeyName(clazz)
+		messageKeys.forEach { key ->
+			val keyName = convertToKeyName(key::class)
 			val value = getNestedValue(data, keyName)
 
 			if (value != null) {
-				langData[instance] = value.toString()
+				langData[key] = value.toString()
 			}
 		}
 	}
@@ -211,6 +198,25 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 			}
 		}
 		return current
+	}
+
+	private fun getMessageKeys(): List<MessageKey<P, C>> {
+		val result = mutableListOf<MessageKey<P, C>>()
+
+		fun collectKeys(kClass: KClass<*>) {
+			kClass.objectInstance?.let {
+				if (it is MessageKey<*, *>) {
+					result.add(it as MessageKey<P, C>)
+				}
+			}
+
+			kClass.nestedClasses.forEach { nested ->
+				collectKeys(nested)
+			}
+		}
+
+		collectKeys(expectedMKType)
+		return result
 	}
 
 	/**
