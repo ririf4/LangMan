@@ -10,7 +10,7 @@ Gradle(Groovy):
 
 ```groovy
 repositories {
-    maven { url 'https://repo.ririfa.net/' }
+    maven { url 'https://repo.ririfa.net/maven2/' }
 }
 
 implementation 'net.ririfa:langman:${version}'
@@ -20,7 +20,7 @@ Gradle(Kotlin):
 
 ```kotlin
 repositories {
-	maven("https://repo.ririfa.net/")
+	maven("https://repo.ririfa.net/maven2/")
 }
 
 implementation("net.ririfa:langman:${version}")
@@ -33,7 +33,7 @@ Maven:
 <repositories>
     <repository>
         <id>central</id>
-        <url>https://repo.ririfa.net/</url>
+        <url>https://repo.ririfa.net/maven2/</url>
     </repository>
 </repositories>
 
@@ -45,5 +45,3 @@ Maven:
 ```
 
 Hint: You can find the all version of the library on the [RiriFa Repository](https://repo.ririfa.net/#browse/browse:maven-releases:net/ririfa/langman/)
-
-## Usage

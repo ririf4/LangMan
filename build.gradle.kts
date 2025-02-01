@@ -25,7 +25,7 @@ val nxProp = Properties().apply {
 }
 
 group = "net.ririfa"
-version = "1.0.0"
+version = "1.1.0"
 
 repositories {
     mavenCentral()
@@ -110,8 +110,8 @@ publishing {
     }
     repositories {
         maven {
-            val releasesRepoUrl = uri("https://repo.ririfa.net/rel/")
-            val snapshotsRepoUrl = uri("https://repo.ririfa.net/snap/")
+            val releasesRepoUrl = uri("https://repo.ririfa.net/maven2-rel/")
+            val snapshotsRepoUrl = uri("https://repo.ririfa.net/maven2-snap/")
             url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
 
             credentials {
