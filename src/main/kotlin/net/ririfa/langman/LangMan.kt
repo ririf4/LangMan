@@ -125,21 +125,18 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 				return@forEach
 			}
 
-			val data = when (type) {
-				InitType.YAML -> Yaml().load<Map<String, Any>>(file.inputStream()) ?: emptyMap()
-				InitType.JSON -> Gson().fromJson<Map<String, Any>>(file.reader(), object : TypeToken<Map<String, Any>>() {}.type) ?: emptyMap()
+			val rawData: Map<String, Any> = when (type) {
+				InitType.YAML -> Yaml().load(file.inputStream()) as? Map<String, Any> ?: emptyMap()
+				InitType.JSON -> Gson().fromJson(file.reader(), object : TypeToken<Map<String, Any>>() {}.type)
+					?: emptyMap()
 			}
 
+			val data = toLowercaseKeys(rawData) as Map<String, Any>
 			startLoad(data, lang)
 		}
 	}
 
-	/**
-	 * Loads message keys and their corresponding translations from data.
-	 * @param data The loaded translation data.
-	 * @param lang The language code being loaded.
-	 */
-	fun startLoad(data: Map<String, Any>, lang: String) {
+	private fun startLoad(data: Map<String, Any>, lang: String) {
 		logger.logIfDebug("Starting load for language: $lang")
 
 		val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
@@ -150,45 +147,48 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 			val keyName = convertToKeyName(key::class)
 			val value = getNestedValue(data, keyName)
 
+			logger.logIfDebug("Checking key: $keyName -> Value: $value")
+
 			if (value != null) {
 				langData[key] = value.toString()
+				logger.logIfDebug("Mapped key: $keyName -> $value")
+			} else {
+				logger.logIfDebug("Key not found in YAML: $keyName")
 			}
 		}
 	}
 
 	private fun convertToKeyName(clazz: KClass<*>): String {
-		return clazz.qualifiedName!!
+		val rawKey = clazz.qualifiedName!!
 			.removePrefix("${expectedMKType.qualifiedName}.")
 			.replace('$', '.')
 			.lowercase()
+
+		return rawKey.replace(Regex("item(\\d+)"), "$1")
 	}
 
 	private fun getNestedValue(map: Map<String, Any>, keyPath: String): Any? {
-		val keys = keyPath.split(".").map { it.lowercase() }
+		val keys = keyPath.split(".")
 		var current: Any? = map
 
 		for (key in keys) {
 			current = when (current) {
 				is Map<*, *> -> {
-					current[key]
+					current[key.lowercase()]
 				}
-
 				is List<*> -> {
-					val index = when {
-						// Support for "ITEM1", "ITEM2", etc.
-						key.startsWith("ITEM") -> key.removePrefix("ITEM").toIntOrNull()
-						// Support for "1", "2", etc.
-						key.toIntOrNull() != null -> key.toInt()
-						else -> null
-					}
-
-					if (index != null && index in current.indices) {
-						current[index]
+					if (key.matches(Regex("\\d+"))) {
+						val index = key.toInt() - 1
+						if (index in current.indices) {
+							current[index]
+						} else {
+							return null
+						}
 					} else {
-						return null
+						current.mapIndexed { index, value -> (index + 1).toString() to value }
+							.toMap()[key.lowercase()]
 					}
 				}
-
 				else -> return null
 			}
 		}
@@ -215,6 +215,16 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		val keyMap = result.associateBy { it.rc().lowercase() }
 
 		return keyMap.values.toList()
+	}
+
+	private fun toLowercaseKeys(input: Any?): Any? {
+		return when (input) {
+			is Map<*, *> -> input.entries.associate { (key, value) ->
+				key.toString().lowercase() to toLowercaseKeys(value)
+			}
+			is List<*> -> input.map { toLowercaseKeys(it) }
+			else -> input
+		}
 	}
 
 	/**
