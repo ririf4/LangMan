@@ -23,8 +23,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	val textComponentFactory: (String) -> C,
 	val expectedMKType: KClass<out MessageKey<*, *>>
 ) {
-	private var packName: String = ""
-
 	/** Flag to enable debug mode. */
 	var isDebug: Boolean = false
 
@@ -49,7 +47,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		 * Initializes a new instance of LangMan and sets it as the current instance.
 		 * @param textComponentFactory Factory function to create message content.
 		 * @param expectedType The expected message key type to ensure type safety.
-		 * @param packageName The base package name to scan for message keys.
 		 * @param isDebug Whether debug mode should be enabled.
 		 * @return The newly created LangMan instance.
 		 */
@@ -58,13 +55,11 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		fun <P : IMessageProvider<C>, C> createNew(
 			textComponentFactory: (String) -> C,
 			expectedType: KClass<out MessageKey<P, C>>,
-			packageName: String,
 			isDebug: Boolean = false
 		): LangMan<P, C> {
 			val languageManager: LangMan<P, C> = LangMan(textComponentFactory, expectedType)
 
 			instance = languageManager
-			languageManager.packName = packageName
 			languageManager.isDebug = isDebug
 
 			return languageManager
@@ -165,11 +160,11 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		return clazz.qualifiedName!!
 			.removePrefix("${expectedMKType.qualifiedName}.")
 			.replace('$', '.')
-			.uppercase()
+			.lowercase()
 	}
 
 	private fun getNestedValue(map: Map<String, Any>, keyPath: String): Any? {
-		val keys = keyPath.split(".")
+		val keys = keyPath.split(".").map { it.lowercase() }
 		var current: Any? = map
 
 		for (key in keys) {
@@ -216,7 +211,10 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		}
 
 		collectKeys(expectedMKType)
-		return result
+
+		val keyMap = result.associateBy { it.rc().lowercase() }
+
+		return keyMap.values.toList()
 	}
 
 	/**
