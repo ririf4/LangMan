@@ -131,100 +131,89 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 					?: emptyMap()
 			}
 
-			val data = toLowercaseKeys(rawData) as Map<String, Any>
-			startLoad(data, lang)
+			val messagesForLang = registerMessages(expectedMKType, rawData)
+
+			val mappedMessages = messagesForLang.mapNotNull { (key, value) ->
+				val messageKey = findMessageKey(expectedMKType, key)
+				messageKey?.let { it to value }
+			}.toMap().toMutableMap()
+
+			messages[lang] = mappedMessages
 		}
 	}
 
-	private fun startLoad(data: Map<String, Any>, lang: String) {
-		logger.logIfDebug("Starting load for language: $lang")
+	private fun registerMessages(expectedMKType: KClass<*>, rawData: Map<String, Any>): MutableMap<String, String> {
+		val messages = mutableMapOf<String, String>()
 
-		val langData = messages.computeIfAbsent(lang) { mutableMapOf() }
+		val expectedKeys = collectMessageKeys(expectedMKType)
+		val availableKeys = flattenMap(rawData)
 
-		val messageKeys = getMessageKeys()
-
-		messageKeys.forEach { key ->
-			val keyName = convertToKeyName(key::class)
-			val value = getNestedValue(data, keyName)
-
-			logger.logIfDebug("Checking key: $keyName -> Value: $value")
-
-			if (value != null) {
-				langData[key] = value.toString()
-				logger.logIfDebug("Mapped key: $keyName -> $value")
-			} else {
-				logger.logIfDebug("Key not found in YAML: $keyName")
+		expectedKeys.forEach { key ->
+			availableKeys[key]?.let { value ->
+				messages[key] = value.toString()
 			}
 		}
+
+		return messages
 	}
 
-	private fun convertToKeyName(clazz: KClass<*>): String {
-		val rawKey = clazz.qualifiedName!!
-			.removePrefix("${expectedMKType.qualifiedName}.")
-			.replace('$', '.')
-			.lowercase()
+	private fun collectMessageKeys(expectedMKType: KClass<*>, prefix: String = ""): List<String> {
+		val keys = mutableListOf<String>()
 
-		return rawKey.replace(Regex("item(\\d+)"), "$1")
+		if (expectedMKType.simpleName == null) return keys
+
+		val baseKey = if (prefix.isEmpty()) expectedMKType.simpleName!!.lowercase()
+		else "$prefix.${expectedMKType.simpleName!!.lowercase()}"
+
+		if (expectedMKType.objectInstance != null) {
+			keys.add(baseKey)
+		}
+
+		expectedMKType.nestedClasses.forEach { subclass ->
+			keys.addAll(collectMessageKeys(subclass, baseKey))
+		}
+
+		return keys
 	}
 
-	private fun getNestedValue(map: Map<String, Any>, keyPath: String): Any? {
-		val keys = keyPath.split(".")
-		var current: Any? = map
+	private fun findMessageKey(expectedMKType: KClass<*>, key: String): MessageKey<P, C>? {
+		expectedMKType.nestedClasses.forEach { subclass ->
+			val subclassKey = subclass.simpleName?.lowercase() ?: return@forEach
 
-		for (key in keys) {
-			current = when (current) {
+			if (subclassKey == key || key.matches(Regex("$subclassKey\\.item\\d+"))) {
+				return subclass.objectInstance as? MessageKey<P, C>
+			}
+
+			val nestedKey = findMessageKey(subclass, key)
+			if (nestedKey != null) {
+				return nestedKey
+			}
+		}
+
+		return null
+	}
+
+	private fun flattenMap(map: Map<String, Any>, prefix: String = ""): Map<String, Any> {
+		val result = mutableMapOf<String, Any>()
+
+		for ((key, value) in map) {
+			val newKey = if (prefix.isEmpty()) key.lowercase() else "$prefix.${key.lowercase()}"
+
+			when (value) {
 				is Map<*, *> -> {
-					current[key.lowercase()]
+					result.putAll(flattenMap(value as Map<String, Any>, newKey))
 				}
 				is List<*> -> {
-					if (key.matches(Regex("\\d+"))) {
-						val index = key.toInt() - 1
-						if (index in current.indices) {
-							current[index]
-						} else {
-							return null
-						}
-					} else {
-						current.mapIndexed { index, value -> (index + 1).toString() to value }
-							.toMap()[key.lowercase()]
+					value.forEachIndexed { index, item ->
+						val itemKey = "$newKey.item${index + 1}".lowercase()
+						result[itemKey] = item ?: "null"
 					}
 				}
-				else -> return null
-			}
-		}
-		return current
-	}
-
-	private fun getMessageKeys(): List<MessageKey<P, C>> {
-		val result = mutableListOf<MessageKey<P, C>>()
-
-		fun collectKeys(kClass: KClass<*>) {
-			kClass.objectInstance?.let {
-				if (it is MessageKey<*, *>) {
-					result.add(it as MessageKey<P, C>)
-				}
-			}
-
-			kClass.nestedClasses.forEach { nested ->
-				collectKeys(nested)
+				else -> result[newKey] = value
 			}
 		}
 
-		collectKeys(expectedMKType)
-
-		val keyMap = result.associateBy { it.rc().lowercase() }
-
-		return keyMap.values.toList()
-	}
-
-	private fun toLowercaseKeys(input: Any?): Any? {
-		return when (input) {
-			is Map<*, *> -> input.entries.associate { (key, value) ->
-				key.toString().lowercase() to toLowercaseKeys(value)
-			}
-			is List<*> -> input.map { toLowercaseKeys(it) }
-			else -> input
-		}
+		return result
 	}
 
 	/**

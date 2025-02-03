@@ -18,5 +18,3 @@ fun Logger.logIfDebug(message: String, level: LogLevel = LogLevel.INFO) {
 enum class LogLevel {
 	INFO, WARN, ERROR
 }
-
-class UnexpectedClassTypeException(message: String) : RuntimeException(message)
