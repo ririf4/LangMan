@@ -10,6 +10,8 @@ import java.io.File
 import java.util.Locale
 import kotlin.collections.get
 import kotlin.reflect.KClass
+import kotlin.reflect.full.declaredMembers
+import kotlin.reflect.jvm.isAccessible
 
 /**
  * Manages language translations and message localization.
@@ -131,88 +133,65 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 					?: emptyMap()
 			}
 
-			val messagesForLang = registerMessages(expectedMKType, rawData)
+			val flatData = flattenYamlMap(rawData)
+			val messageKeys = flattenMessageKeys(expectedMKType, expectedMKType.simpleName!!.lowercase())
 
-			val mappedMessages = messagesForLang.mapNotNull { (key, value) ->
-				val messageKey = findMessageKey(expectedMKType, key)
-				messageKey?.let { it to value }
-			}.toMap().toMutableMap()
-
-			messages[lang] = mappedMessages
-		}
-	}
-
-	private fun registerMessages(expectedMKType: KClass<*>, rawData: Map<String, Any>): MutableMap<String, String> {
-		val messages = mutableMapOf<String, String>()
-
-		val expectedKeys = collectMessageKeys(expectedMKType)
-		val availableKeys = flattenMap(rawData)
-
-		expectedKeys.forEach { key ->
-			availableKeys[key]?.let { value ->
-				messages[key] = value.toString()
-			}
-		}
-
-		return messages
-	}
-
-	private fun collectMessageKeys(expectedMKType: KClass<*>, prefix: String = ""): List<String> {
-		val keys = mutableListOf<String>()
-
-		if (expectedMKType.simpleName == null) return keys
-
-		val baseKey = if (prefix.isEmpty()) expectedMKType.simpleName!!.lowercase()
-		else "$prefix.${expectedMKType.simpleName!!.lowercase()}"
-
-		if (expectedMKType.objectInstance != null) {
-			keys.add(baseKey)
-		}
-
-		expectedMKType.nestedClasses.forEach { subclass ->
-			keys.addAll(collectMessageKeys(subclass, baseKey))
-		}
-
-		return keys
-	}
-
-	private fun findMessageKey(expectedMKType: KClass<*>, key: String): MessageKey<P, C>? {
-		expectedMKType.nestedClasses.forEach { subclass ->
-			val subclassKey = subclass.simpleName?.lowercase() ?: return@forEach
-
-			if (subclassKey == key || key.matches(Regex("$subclassKey\\.item\\d+"))) {
-				return subclass.objectInstance as? MessageKey<P, C>
+			val localizedMessages = mutableMapOf<MessageKey<P, C>, String>()
+			flatData.forEach { (key, value) ->
+				messageKeys[key]?.let { localizedMessages[it as MessageKey<P, C>] = value }
 			}
 
-			val nestedKey = findMessageKey(subclass, key)
-			if (nestedKey != null) {
-				return nestedKey
-			}
+			messages[lang] = localizedMessages
 		}
-
-		return null
 	}
 
-	private fun flattenMap(map: Map<String, Any>, prefix: String = ""): Map<String, Any> {
-		val result = mutableMapOf<String, Any>()
+	private fun flattenYamlMap(map: Map<*, *>, parentKey: String = ""): Map<String, String> {
+		val result = mutableMapOf<String, String>()
 
 		for ((key, value) in map) {
-			val newKey = if (prefix.isEmpty()) key.lowercase() else "$prefix.${key.lowercase()}"
+			val keyStr = key?.toString() ?: continue
+			val newKey = if (parentKey.isEmpty()) keyStr.lowercase() else "$parentKey.$keyStr".lowercase()
 
 			when (value) {
 				is Map<*, *> -> {
-					result.putAll(flattenMap(value as Map<String, Any>, newKey))
+					val mapValue = value.filterKeys { it is String } as? Map<String, Any> ?: emptyMap()
+					result.putAll(flattenYamlMap(mapValue, newKey))
 				}
 				is List<*> -> {
 					value.forEachIndexed { index, item ->
-						val itemKey = "$newKey.item${index + 1}".lowercase()
-						result[itemKey] = item ?: "null"
+						if (item is String) {
+							result["$newKey.item${index + 1}"] = item
+						}
 					}
 				}
-				else -> result[newKey] = value
+				is String -> {
+					result[newKey] = value
+				}
+			}
+		}
+		return result
+	}
+
+	private fun flattenMessageKeys(rootClass: KClass<*>, removePrefix: String = ""): Map<String, MessageKey<*, *>> {
+		val result = mutableMapOf<String, MessageKey<*, *>>()
+
+		fun processClass(clazz: KClass<*>, path: String) {
+			clazz.declaredMembers.forEach { member ->
+				member.isAccessible = true
+				val obj = runCatching { member.call() }.getOrNull()
+
+				if (obj is MessageKey<*, *>) {
+					val objName = member.name.lowercase()
+					val newPath = if (path.isEmpty()) objName else "$path.$objName"
+					result[newPath.removePrefix("$removePrefix.")] = obj
+				} else if (obj != null) {
+					val objSimpleName = obj::class.simpleName ?: return
+					processClass(obj::class, if (path.isEmpty()) objSimpleName.lowercase() else "$path.${objSimpleName.lowercase()}")
+				}
 			}
 		}
 
+		processClass(rootClass, "")
 		return result
 	}
 
