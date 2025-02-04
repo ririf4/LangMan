@@ -10,8 +10,6 @@ import java.io.File
 import java.util.Locale
 import kotlin.collections.get
 import kotlin.reflect.KClass
-import kotlin.reflect.full.declaredMembers
-import kotlin.reflect.jvm.isAccessible
 
 /**
  * Manages language translations and message localization.
@@ -118,35 +116,45 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	 * @param langs The list of language codes to load.
 	 */
 	fun init(type: InitType, dir: File, langs: List<String>) {
-		logger.logIfDebug("Starting initialization with type: $type")
+		logger.info("Starting initialization with type: $type")
 
 		langs.forEach { lang ->
 			val file = File(dir, "$lang.${type.fileExtension}")
 			if (!file.exists()) {
-				logger.logIfDebug("File not found for language: $lang")
+				logger.warn("File not found for language: $lang")
 				return@forEach
 			}
 
+			logger.info("Loading language file: ${file.absolutePath}")
 			val rawData: Map<String, Any> = when (type) {
 				InitType.YAML -> Yaml().load(file.inputStream()) as? Map<String, Any> ?: emptyMap()
 				InitType.JSON -> Gson().fromJson(file.reader(), object : TypeToken<Map<String, Any>>() {}.type)
 					?: emptyMap()
 			}
+			logger.logIfDebug("Raw data for $lang: $rawData")
 
 			val flatData = flattenYamlMap(rawData)
+			logger.logIfDebug("Flattened YAML data for $lang: $flatData")
+
 			val messageKeys = flattenMessageKeys(expectedMKType, expectedMKType.simpleName!!.lowercase())
+			logger.logIfDebug("Extracted message keys: $messageKeys")
 
 			val localizedMessages = mutableMapOf<MessageKey<P, C>, String>()
 			flatData.forEach { (key, value) ->
-				messageKeys[key]?.let { localizedMessages[it as MessageKey<P, C>] = value }
+				messageKeys[key]?.let {
+					localizedMessages[it as MessageKey<P, C>] = value
+					logger.logIfDebug("Matched key: $key -> $value")
+				} ?: logger.logIfDebug("No matching message key found for: $key", LogLevel.WARN)
 			}
 
 			messages[lang] = localizedMessages
+			logger.logIfDebug("Loaded messages for $lang: ${messages[lang]}")
 		}
 	}
 
 	private fun flattenYamlMap(map: Map<*, *>, parentKey: String = ""): Map<String, String> {
 		val result = mutableMapOf<String, String>()
+		logger.logIfDebug("Flattening YAML map: parentKey=$parentKey, map=$map")
 
 		for ((key, value) in map) {
 			val keyStr = key?.toString() ?: continue
@@ -155,45 +163,55 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 			when (value) {
 				is Map<*, *> -> {
 					val mapValue = value.filterKeys { it is String } as? Map<String, Any> ?: emptyMap()
+					logger.logIfDebug("Processing nested map at key=$newKey: $mapValue")
 					result.putAll(flattenYamlMap(mapValue, newKey))
 				}
 				is List<*> -> {
 					value.forEachIndexed { index, item ->
 						if (item is String) {
-							result["$newKey.item${index + 1}"] = item
+							val listKey = "$newKey.item${index + 1}"
+							result[listKey] = item
+							logger.logIfDebug("Processing list item at key=$listKey: $item")
 						}
 					}
 				}
 				is String -> {
 					result[newKey] = value
+					logger.logIfDebug("Processing string at key=$newKey: $value")
 				}
 			}
 		}
+		logger.logIfDebug("Flattened YAML result: $result")
 		return result
 	}
 
 	private fun flattenMessageKeys(rootClass: KClass<*>, removePrefix: String = ""): Map<String, MessageKey<*, *>> {
 		val result = mutableMapOf<String, MessageKey<*, *>>()
 
+		logger.logIfDebug("Flattening message keys for class: ${rootClass.simpleName}")
+
 		fun processClass(clazz: KClass<*>, path: String) {
-			clazz.declaredMembers.forEach { member ->
-				member.isAccessible = true
-				val obj = runCatching { member.call() }.getOrNull()
+			logger.logIfDebug("Processing class: ${clazz.simpleName}, path: $path")
+
+			clazz.sealedSubclasses.forEach { subclass ->
+				val obj = runCatching { subclass.objectInstance }.getOrNull()
+				logger.logIfDebug("Processing subclass: ${subclass.simpleName}, value: $obj")
 
 				if (obj is MessageKey<*, *>) {
-					val objName = member.name.lowercase()
-					val newPath = if (path.isEmpty()) objName else "$path.$objName"
+					val newPath = if (path.isEmpty()) subclass.simpleName!!.lowercase() else "$path.${subclass.simpleName!!.lowercase()}"
 					result[newPath.removePrefix("$removePrefix.")] = obj
-				} else if (obj != null) {
-					val objSimpleName = obj::class.simpleName ?: return
-					processClass(obj::class, if (path.isEmpty()) objSimpleName.lowercase() else "$path.${objSimpleName.lowercase()}")
+					logger.logIfDebug("Added MessageKey: $newPath -> $obj")
+				} else {
+					processClass(subclass, if (path.isEmpty()) subclass.simpleName!!.lowercase() else "$path.${subclass.simpleName!!.lowercase()}")
 				}
 			}
 		}
 
 		processClass(rootClass, "")
+		logger.logIfDebug("Flattened message keys result: $result")
 		return result
 	}
+
 
 	/**
 	 * Retrieves a system message using the default locale.

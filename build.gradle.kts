@@ -25,7 +25,7 @@ val nxProp = Properties().apply {
 }
 
 group = "net.ririfa"
-version = "1.2.1-beta.7"
+version = "1.2.1-beta.11"
 
 repositories {
     mavenCentral()
