@@ -16,16 +16,12 @@ plugins {
     `maven-publish`
 }
 
-//val localProperties = Properties().apply {
-//    load(FileInputStream(rootProject.file("local.properties")))
-//}
-
 val nxProp = Properties().apply {
     load(FileInputStream(rootProject.file("local/nx.properties")))
 }
 
 group = "net.ririfa"
-version = "1.2.1-beta.11"
+version = "1.2.2"
 
 repositories {
     mavenCentral()
