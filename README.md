@@ -38,7 +38,7 @@ Maven:
 </repositories>
 
 <dependency>
-<groupId>net.ririfanet.ririfa</groupId>
+<groupId>net.ririfa</groupId>
 <artifactId>langman</artifactId>
 <version>${version}</version>
 </dependency>
