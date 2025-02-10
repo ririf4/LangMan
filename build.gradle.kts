@@ -1,5 +1,4 @@
 import cl.franciscosolis.sonatypecentralupload.SonatypeCentralUploadTask
-import org.gradle.kotlin.dsl.assign
 import org.gradle.kotlin.dsl.named
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -24,7 +23,7 @@ val localProperties = Properties().apply {
 }
 
 group = "net.ririfa"
-version = "1.3.0"
+version = "1.3.1"
 
 repositories {
     mavenCentral()
