@@ -1,3 +1,5 @@
+import cl.franciscosolis.sonatypecentralupload.SonatypeCentralUploadTask
+import org.gradle.kotlin.dsl.assign
 import org.gradle.kotlin.dsl.named
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -14,14 +16,15 @@ plugins {
 
     // Publishing
     `maven-publish`
+    id("cl.franciscosolis.sonatype-central-upload") version "1.0.3"
 }
 
-val nxProp = Properties().apply {
-    load(FileInputStream(rootProject.file("local/nx.properties")))
+val localProperties = Properties().apply {
+    load(FileInputStream(rootProject.file("local/local.properties")))
 }
 
 group = "net.ririfa"
-version = "1.2.2"
+version = "1.3.0"
 
 repositories {
     mavenCentral()
@@ -105,18 +108,26 @@ publishing {
         }
     }
     repositories {
-        maven {
-            val releasesRepoUrl = uri("https://repo.ririfa.net/maven2-rel/")
-            val snapshotsRepoUrl = uri("https://repo.ririfa.net/maven2-snap/")
-
-            val snapshotPattern = Regex(".*(SNAPSHOT(-\\d+)?|alpha(\\.\\d+)?|beta(\\.\\d+)?|dev(\\.\\d+)?)$")
-
-            url = if (snapshotPattern.matches(version.toString())) snapshotsRepoUrl else releasesRepoUrl
-
-            credentials {
-                username = nxProp.getProperty("nxUN")
-                password = nxProp.getProperty("nxPW")
-            }
-        }
+        mavenLocal()
     }
+}
+
+tasks.named<SonatypeCentralUploadTask>("sonatypeCentralUpload") {
+    dependsOn("clean", "jar", "sourcesJar", "javadocJar", "generatePomFileForMavenPublication")
+
+    username = localProperties.getProperty("cu")
+    password = localProperties.getProperty("cp")
+
+    archives = files(
+        tasks.named("jar"),
+        tasks.named("sourcesJar"),
+        tasks.named("javadocJar"),
+    )
+
+    pom = file(
+        tasks.named("generatePomFileForMavenPublication").get().outputs.files.single()
+    )
+
+    signingKey = localProperties.getProperty("signing.key")
+    signingKeyPassphrase = localProperties.getProperty("signing.passphrase")
 }
