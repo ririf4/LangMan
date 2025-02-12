@@ -161,12 +161,14 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 
 		val missingKeys = expectedKeys - loadedKeys
 		if (missingKeys.isNotEmpty()) {
-			logger.warn("Missing translation keys for language [$lang]: $missingKeys")
+			logger.warn(
+				"Missing translation keys for language [$lang]:\n" +
+						missingKeys.joinToString("\n") { " - $it" }
+			)
 		} else {
 			logger.info("All expected translation keys are present for language [$lang]")
 		}
 	}
-
 
 	private fun flattenYamlMap(map: Map<*, *>, parentKey: String = ""): Map<String, String> {
 		val result = mutableMapOf<String, String>()
