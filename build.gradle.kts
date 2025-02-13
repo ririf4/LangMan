@@ -1,11 +1,8 @@
 import cl.franciscosolis.sonatypecentralupload.SonatypeCentralUploadTask
-import org.gradle.kotlin.dsl.named
-import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.FileInputStream
-import java.util.Properties
-import kotlin.apply
+import java.util.*
 
 plugins {
     // Kotlin
@@ -23,7 +20,7 @@ val localProperties = Properties().apply {
 }
 
 group = "net.ririfa"
-version = "1.3.1"
+version = "1.3.2"
 
 repositories {
     mavenCentral()

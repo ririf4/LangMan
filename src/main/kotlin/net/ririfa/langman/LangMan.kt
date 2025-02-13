@@ -2,13 +2,13 @@ package net.ririfa.langman
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import net.ririfa.langman.LangMan.Companion.getOrNull
 import net.ririfa.langman.dummy.DummyMessageKey
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.yaml.snakeyaml.Yaml
 import java.io.File
-import java.util.Locale
-import kotlin.collections.get
+import java.util.*
 import kotlin.reflect.KClass
 
 /**
@@ -108,6 +108,9 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 
 	/** Stores the localized messages for different languages. */
 	val messages: MutableMap<String, MutableMap<MessageKey<P, C>, String>> = mutableMapOf()
+
+	val replaceLogic = mutableMapOf<Class<*>, (Any, String, Any) -> Any>()
+	val convertToFinalType = mutableMapOf<Class<*>, (Any) -> Any>()
 
 	/**
 	 * Initializes the language manager by loading translations from files.
@@ -230,7 +233,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		return result
 	}
 
-
 	/**
 	 * Retrieves a system message using the default locale.
 	 * @param key The message key.
@@ -254,5 +256,17 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		val message = messages[lang]?.get(key)
 		val text = message?.let { String.format(it, *args) } ?: return key.rc()
 		return text
+	}
+
+	inline fun <reified I : Any> registerReplacementLogic(
+		noinline logic: (I, String, I) -> I
+	) {
+		replaceLogic[I::class.java] = logic as (Any, String, Any) -> Any
+	}
+
+	inline fun <reified I : Any, reified C : Any> registerConversionLogic(
+		noinline converter: (I) -> C
+	) {
+		convertToFinalType[C::class.java] = converter as (Any) -> Any
 	}
 }
