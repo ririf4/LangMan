@@ -105,7 +105,7 @@ abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C> : IMes
 	 * @throws IllegalArgumentException if no replacer is found for the retrieved message's class or no converter is found for [C].
 	 */
 	@Suppress("UNCHECKED_CAST")
-	inline fun <K, V, reified C> getMessage(key: MessageKey<*, *>, argsComplete: Map<K, V>): C {
+	inline fun <K, V, reified C> getMsg(key: MessageKey<*, *>, argsComplete: Map<K, V>): C {
 		val messages = langMan.messages
 		val expectedMKType = langMan.expectedMKType
 
