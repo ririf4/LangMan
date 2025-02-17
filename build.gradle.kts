@@ -20,7 +20,7 @@ val localProperties = Properties().apply {
 }
 
 group = "net.ririfa"
-version = "1.4.0"
+version = "1.4.1"
 
 repositories {
     mavenCentral()

@@ -9,7 +9,7 @@ import kotlin.reflect.full.isSubclassOf
 
 // Based https://github.com/SwiftStorm-Studio/SwiftBase/blob/main/integrations/fabric/src/main/kotlin/net/rk4z/s1/swiftbase/fabric/FabricPlayer.kt
 // Made by me!
-abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C>(
+abstract class MessageProviderDefault<P : MessageProviderDefault<P, C>, C>(
 	val clazz: Class<C>
 ) : IMessageProvider<C> {
 	/**
@@ -107,7 +107,11 @@ abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C>(
 	 * @throws IllegalArgumentException if message conversion fails due to a type mismatch.
 	 */
 	@Suppress("UNCHECKED_CAST")
-	inline fun <reified C : Any> getMsgWithOther(key: MessageKey<*, *>, argsComplete: Map<String, C>): C {
+	@JvmOverloads
+	inline fun <reified C : Any> getMsgWithOther(
+		key: MessageKey<*, *>,
+		argsComplete: Map<String, C> = emptyMap()
+	): C {
 		val messages = langMan.messages
 		val expectedMKType = langMan.expectedMKType
 
@@ -128,11 +132,13 @@ abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C>(
 			throw IllegalArgumentException("Failed to convert message: Expected ${C::class}, but got ${message::class}", e)
 		}
 
-		val replaceFunction = langMan.replaceLogic[C::class.java]
-			?: throw IllegalStateException("No replacement logic found for type ${C::class}")
+		if (argsComplete.isNotEmpty()) {
+			val replaceFunction = langMan.replaceLogic[C::class.java]
+				?: throw IllegalStateException("No replacement logic found for type ${C::class}")
 
-		for ((key, value) in argsComplete) {
-			convertedMessage = (replaceFunction as (C, String, C) -> C)(convertedMessage, key, value)
+			for ((key, value) in argsComplete) {
+				convertedMessage = (replaceFunction as (C, String, C) -> C)(convertedMessage, key, value)
+			}
 		}
 
 		return convertedMessage
@@ -152,7 +158,11 @@ abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C>(
 	 * @throws IllegalArgumentException if message conversion fails due to a type mismatch.
 	 */
 	@Suppress("UNCHECKED_CAST")
-	inline fun <reified G : Any> getMsg(key: MessageKey<*, *>, argsComplete: Map<String, G>): C {
+	@JvmOverloads
+	inline fun <reified G : Any> getMsg(
+		key: MessageKey<*, *>,
+		argsComplete: Map<String, G> = emptyMap()
+	): C {
 		val converter = langMan.convertToFinalType[clazz]
 			?: throw IllegalStateException("No converter found for type $clazz")
 
