@@ -2,6 +2,7 @@ package net.ririfa.langman
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.moandjiezana.toml.Toml
 import net.ririfa.langman.LangMan.Companion.getOrNull
 import net.ririfa.langman.dummy.DummyMessageKey
 import org.slf4j.Logger
@@ -133,10 +134,11 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 				InitType.YAML -> Yaml().load(file.inputStream()) as? Map<String, Any> ?: emptyMap()
 				InitType.JSON -> Gson().fromJson(file.reader(), object : TypeToken<Map<String, Any>>() {}.type)
 					?: emptyMap()
+				InitType.TOML -> flattenYamlOrTomlMap(Toml().read(file).toMap())
 			}
 			logger.logIfDebug("Raw data for $lang: $rawData")
 
-			val flatData = flattenYamlMap(rawData)
+			val flatData = flattenYamlOrTomlMap(rawData)
 			logger.logIfDebug("Flattened YAML data for $lang: $flatData")
 
 			val messageKeys = flattenMessageKeys(expectedMKType, expectedMKType.simpleName!!.lowercase())
@@ -164,16 +166,16 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 
 		val missingKeys = expectedKeys - loadedKeys
 		if (missingKeys.isNotEmpty()) {
-			logger.warn(
-				"Missing translation keys for language [$lang]:\n" +
-						missingKeys.joinToString("\n") { " - $it" }
-			)
+			logger.warn("Missing translation keys for language [$lang]:")
+			missingKeys.forEach { key ->
+				logger.warn(" - $key")
+			}
 		} else {
 			logger.info("All expected translation keys are present for language [$lang]")
 		}
 	}
 
-	private fun flattenYamlMap(map: Map<*, *>, parentKey: String = ""): Map<String, String> {
+	private fun flattenYamlOrTomlMap(map: Map<*, *>, parentKey: String = ""): Map<String, String> {
 		val result = mutableMapOf<String, String>()
 		logger.logIfDebug("Flattening YAML map: parentKey=$parentKey, map=$map")
 
@@ -185,7 +187,7 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 				is Map<*, *> -> {
 					val mapValue = value.filterKeys { it is String } as? Map<String, Any> ?: emptyMap()
 					logger.logIfDebug("Processing nested map at key=$newKey: $mapValue")
-					result.putAll(flattenYamlMap(mapValue, newKey))
+					result.putAll(flattenYamlOrTomlMap(mapValue, newKey))
 				}
 				is List<*> -> {
 					value.forEachIndexed { index, item ->
@@ -264,9 +266,24 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		replaceLogic[I::class.java] = logic as (Any, String, Any) -> Any
 	}
 
+	/**
+	 * Registers a conversion logic from type `I` to type `C`.
+	 *
+	 * @param I The source type.
+	 * @param C The target type.
+	 * @param converter A function that converts an instance of type `I` to type `C`.
+	 *
+	 * @throws ClassCastException If the specified conversion logic cannot be cast to `(Any) -> Any`.
+	 *
+	 * Example usage:
+	 * ```
+	 * registerConversionLogic<String, Text> { Text.of(it) }
+	 * ```
+	 */
 	inline fun <reified I : Any, reified C : Any> registerConversionLogic(
 		noinline converter: (I) -> C
 	) {
 		convertToFinalType[C::class.java] = converter as (Any) -> Any
 	}
+
 }

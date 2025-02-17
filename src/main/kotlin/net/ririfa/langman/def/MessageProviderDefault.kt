@@ -9,7 +9,9 @@ import kotlin.reflect.full.isSubclassOf
 
 // Based https://github.com/SwiftStorm-Studio/SwiftBase/blob/main/integrations/fabric/src/main/kotlin/net/rk4z/s1/swiftbase/fabric/FabricPlayer.kt
 // Made by me!
-abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C> : IMessageProvider<C> {
+abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C>(
+	val clazz: Class<C>
+) : IMessageProvider<C> {
 	/**
 	 * Retrieves the `LangMan` instance.
 	 *
@@ -88,44 +90,80 @@ abstract class MessageProviderDefault<P: MessageProviderDefault<P, C>, C> : IMes
 	}
 
 	/**
-	 * Retrieves a localized message based on the specified [key], applies placeholder replacement using [argsComplete],
-	 * and converts the processed message into the output type [C].
+	 * Retrieves a localized message of type [C] based on the specified [key], applies placeholder replacement using [argsComplete],
+	 * and converts the processed message into the requested type.
 	 *
-	 * This method uses the registered [LangMan.replaceLogic] to perform placeholder replacements on the raw message. After all
-	 * placeholders have been replaced, it applies the corresponding converter from [LangMan.convertToFinalType] to transform
-	 * the message into the final type [C].
+	 * This method first retrieves the raw message from `LangMan`, then applies placeholder replacements using the registered
+	 * `replaceLogic`. After the placeholders are replaced, the message is converted into the final type [C] using the registered
+	 * `convertToFinalType`.
 	 *
-	 * @param K The placeholder key type.
-	 * @param V The placeholder value type.
 	 * @param C The reified output type.
 	 * @param key The [MessageKey] identifying which localized message to retrieve.
 	 * @param argsComplete A map of placeholders (keys) and their respective replacement values.
 	 * @return The localized message of type [C].
 	 * @throws IllegalStateException if the retrieved message key's type does not match the expected message key type.
-	 * @throws IllegalArgumentException if no replacer is found for the retrieved message's class or no converter is found for [C].
+	 * @throws IllegalStateException if no converter is found for type [C].
+	 * @throws IllegalStateException if no replacement logic is found for type [C].
+	 * @throws IllegalArgumentException if message conversion fails due to a type mismatch.
 	 */
 	@Suppress("UNCHECKED_CAST")
-	inline fun <K, V, reified C> getMsg(key: MessageKey<*, *>, argsComplete: Map<K, V>): C {
+	inline fun <reified C : Any> getMsgWithOther(key: MessageKey<*, *>, argsComplete: Map<String, C>): C {
 		val messages = langMan.messages
 		val expectedMKType = langMan.expectedMKType
 
 		require(key::class.isSubclassOf(expectedMKType)) {
 			"Unexpected MessageKey type: ${key::class}. Expected: $expectedMKType"
 		}
+
 		val lang = this.getLanguage()
-		var message: Any = messages[lang]?.get(key) ?: key.rc()
+		val message = messages[lang]?.get(key) ?: key.rc()
 
-		val replacer = langMan.replaceLogic[message::class.java]
-			?: error("No replacer found for ${message::class.java}")
+		val converter = langMan.convertToFinalType[C::class.java]
+			?: throw IllegalStateException("No converter found for type ${C::class}")
 
-		for ((placeholder, value) in argsComplete) {
-			message = replacer(message, "%$placeholder%", value as Any)
+		var convertedMessage: C = try {
+			converter.invoke(message) as? C
+				?: throw IllegalArgumentException("Failed to convert message: Expected ${C::class}, but got ${message::class}")
+		} catch (e: ClassCastException) {
+			throw IllegalArgumentException("Failed to convert message: Expected ${C::class}, but got ${message::class}", e)
 		}
 
-		val converter = langMan.convertToFinalType[C::class.java] as? (Any) -> C
-			?: error("No converter found for ${message::class.java} -> ${C::class.java}")
+		val replaceFunction = langMan.replaceLogic[C::class.java]
+			?: throw IllegalStateException("No replacement logic found for type ${C::class}")
 
-		return converter(message)
+		for ((key, value) in argsComplete) {
+			convertedMessage = (replaceFunction as (C, String, C) -> C)(convertedMessage, key, value)
+		}
+
+		return convertedMessage
+	}
+
+	/**
+	 * Retrieves a localized message of type [G], applies placeholder replacement, and then converts it into the default class type [C].
+	 *
+	 * This method first retrieves a localized message of type [G] using [getMsgWithOther], applies the necessary placeholder replacements,
+	 * and then converts it into the class-level default type [C] using the registered converter.
+	 *
+	 * @param G The intermediate type used for processing before conversion to [C].
+	 * @param key The [MessageKey] identifying which localized message to retrieve.
+	 * @param argsComplete A map of placeholders (keys) and their respective replacement values.
+	 * @return The localized message converted into the class-defined type [C].
+	 * @throws IllegalStateException if no converter is found for type [C].
+	 * @throws IllegalArgumentException if message conversion fails due to a type mismatch.
+	 */
+	@Suppress("UNCHECKED_CAST")
+	inline fun <reified G : Any> getMsg(key: MessageKey<*, *>, argsComplete: Map<String, G>): C {
+		val converter = langMan.convertToFinalType[clazz]
+			?: throw IllegalStateException("No converter found for type $clazz")
+
+		val messageG: G = getMsgWithOther(key, argsComplete)
+
+		return try {
+			converter.invoke(messageG) as? C
+				?: throw IllegalArgumentException("Failed to convert message: Expected $clazz, but got ${messageG::class}")
+		} catch (e: ClassCastException) {
+			throw IllegalArgumentException("Failed to convert message: Expected $clazz, but got ${messageG::class}", e)
+		}
 	}
 
 	/**
