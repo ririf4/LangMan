@@ -1,26 +1,16 @@
-import cl.franciscosolis.sonatypecentralupload.SonatypeCentralUploadTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import java.io.FileInputStream
-import java.util.*
 
 plugins {
     // Kotlin
-    kotlin("jvm") version "2.1.0"
+    kotlin("jvm") version "2.1.10"
     kotlin("plugin.serialization") version "2.1.0"
     id("org.jetbrains.dokka") version "2.0.0"
-
-    // Publishing
     `maven-publish`
-    id("cl.franciscosolis.sonatype-central-upload") version "1.0.3"
-}
-
-val localProperties = Properties().apply {
-    load(FileInputStream(rootProject.file("local/local.properties")))
 }
 
 group = "net.ririfa"
-version = "1.4.1"
+version = "1.4.3"
 
 repositories {
     mavenCentral()
@@ -46,6 +36,10 @@ kotlin {
     jvmToolchain {
         languageVersion.set(JavaLanguageVersion.of(17))
     }
+
+    compilerOptions {
+        freeCompilerArgs.add("-Xjvm-default=all")
+    }
 }
 
 tasks.withType<KotlinCompile> {
@@ -61,10 +55,6 @@ tasks.withType<JavaCompile> {
 tasks.named<Jar>("jar") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     archiveClassifier.set("")
-}
-
-tasks.dokkaHtml.configure {
-    outputDirectory.set(layout.buildDirectory.dir("dokka"))
 }
 
 publishing {
@@ -105,26 +95,15 @@ publishing {
         }
     }
     repositories {
-        mavenLocal()
+        maven {
+            val releasesRepoUrl = uri("https://repo.ririfa.net/maven2-rel/")
+            val snapshotsRepoUrl = uri("https://repo.ririfa.net/maven2-snap/")
+            url = if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl
+
+            credentials {
+                username = findProperty("nxUN").toString()
+                password = findProperty("nxPW").toString()
+            }
+        }
     }
-}
-
-tasks.named<SonatypeCentralUploadTask>("sonatypeCentralUpload") {
-    dependsOn("clean", "jar", "sourcesJar", "javadocJar", "generatePomFileForMavenPublication")
-
-    username = localProperties.getProperty("cu")
-    password = localProperties.getProperty("cp")
-
-    archives = files(
-        tasks.named("jar"),
-        tasks.named("sourcesJar"),
-        tasks.named("javadocJar"),
-    )
-
-    pom = file(
-        tasks.named("generatePomFileForMavenPublication").get().outputs.files.single()
-    )
-
-    signingKey = localProperties.getProperty("signing.key")
-    signingKeyPassphrase = localProperties.getProperty("signing.passphrase")
 }

@@ -8,6 +8,7 @@ import net.ririfa.langman.LangMan.Companion.logger
  * @param E The type of the message provider.
  * @param C The type of the text component.
  */
+@JvmDefaultWithCompatibility
 interface MessageKey<E : IMessageProvider<C>, C> {
 	/**
 	 * Retrieves the text component of this message key.
@@ -25,6 +26,19 @@ interface MessageKey<E : IMessageProvider<C>, C> {
 	 */
 	fun rc(): String {
 		return this.javaClass.simpleName
+	}
+
+	/**
+	 * Retrieves the full-path content of this message key.
+	 *
+	 * @return The full-path content of this message key.
+	 */
+	fun fp(): String {
+		val fullName = this.javaClass.name
+		val packageName = this.javaClass.`package`?.name
+		val relativeName = packageName?.let { fullName.removePrefix("$it.") } ?: fullName
+
+		return relativeName.replace('$', '.').lowercase()
 	}
 
 	/**

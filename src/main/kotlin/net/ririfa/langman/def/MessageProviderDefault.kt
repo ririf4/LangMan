@@ -7,6 +7,21 @@ import net.ririfa.langman.LangMan
 import net.ririfa.langman.MessageKey
 import kotlin.reflect.full.isSubclassOf
 
+/**
+ * An abstract base class implementing the `IMessageProvider` interface for creating localized message systems.
+ *
+ * This class is intended to handle the localization of messages grouped by language settings
+ * and provides multiple strategies for retrieving context-aware localized messages, including:
+ * - Messages with sequential arguments.
+ * - Messages using placeholder-based maps.
+ * - Messages generated based on intermediate types and custom transformations.
+ *
+ * The output type of localized messages is determined by the generic type parameter `C`.
+ *
+ * @param P Self-referenced generic type used for type-safe association within implementations.
+ * @param C The type of the final localized message output (e.g., string, text component).
+ * @property clazz The class type of the final output used during message conversion.
+ */
 // Based https://github.com/SwiftStorm-Studio/SwiftBase/blob/main/integrations/fabric/src/main/kotlin/net/rk4z/s1/swiftbase/fabric/FabricPlayer.kt
 // Made by me!
 abstract class MessageProviderDefault<P : MessageProviderDefault<P, C>, C>(

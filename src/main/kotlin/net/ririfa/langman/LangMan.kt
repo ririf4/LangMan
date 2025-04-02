@@ -107,10 +107,46 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 		}
 	}
 
-	/** Stores the localized messages for different languages. */
+
+	/**
+	 * A mutable map that holds localized messages organized by language codes and message keys.
+	 *
+	 * The outer map uses strings as keys, representing language codes (e.g., "en", "fr").
+	 * The inner map pairs `MessageKey` instances with their corresponding localized message strings.
+	 *
+	 * This structure is a core component of the language manager, allowing for efficient
+	 * storage and retrieval of translations based on language and specific message keys.
+	 */
 	val messages: MutableMap<String, MutableMap<MessageKey<P, C>, String>> = mutableMapOf()
 
+	/**
+	 * A mutable map that manages replacement logic for specific types.
+	 *
+	 * Each entry in the map associates a class type with a corresponding function
+	 * that defines the logic for replacing or transforming values for that type.
+	 *
+	 * - Key: The class type for which replacement logic is defined.
+	 * - Value: A function that takes three parameters:
+	 *   1. The original value of type `Any`.
+	 *   2. A string representing an identifier or key.
+	 *   3. A new value of type `Any` to replace or transform.
+	 *
+	 * The function returns the transformed or replaced value.
+	 *
+	 * This map is primarily utilized by the `registerReplacementLogic` method
+	 * to dynamically add replacement or transformation logic for various types.
+	 */
 	val replaceLogic = mutableMapOf<Class<*>, (Any, String, Any) -> Any>()
+
+	/**
+	 * A mutable map that associates a `Class` type with a conversion function.
+	 * The conversion function transforms an input of type `Any` into an `Any`
+	 * object of the specified target class type.
+	 *
+	 * This map can be utilized for dynamic type conversion by providing a mapping
+	 * between a target class type and its corresponding transformation logic.
+	 * It supports extensible and custom transformations for various type requirements.
+	 */
 	val convertToFinalType = mutableMapOf<Class<*>, (Any) -> Any>()
 
 	/**
@@ -154,24 +190,6 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 
 			messages[lang] = localizedMessages
 			logger.logIfDebug("Loaded messages for $lang: ${messages[lang]}")
-		}
-	}
-
-	/**
-	 * Logs missing translation keys for all loaded languages.
-	 */
-	fun logMissingKeys(lang: String) {
-		val expectedKeys = flattenMessageKeys(expectedMKType, expectedMKType.simpleName!!.lowercase()).keys
-		val loadedKeys = messages[lang]?.keys?.map { it.rc() }?.toSet() ?: emptySet()
-
-		val missingKeys = expectedKeys - loadedKeys
-		if (missingKeys.isNotEmpty()) {
-			logger.warn("Missing translation keys for language [$lang]:")
-			missingKeys.forEach { key ->
-				logger.warn(" - $key")
-			}
-		} else {
-			logger.info("All expected translation keys are present for language [$lang]")
 		}
 	}
 
@@ -241,7 +259,7 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	 * @param args Arguments to format the message.
 	 * @return The formatted system message.
 	 */
-	fun getSysMessage(key: MessageKey<*, *>, vararg args: Any): String {
+	fun getMessage(key: MessageKey<*, *>, vararg args: Any): String {
 		val lang = Locale.getDefault().language
 		val message = messages[lang]?.get(key)
 		return message?.let { String.format(it, *args) } ?: key.rc()
@@ -254,7 +272,7 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	 * @param args Arguments to format the message.
 	 * @return The formatted system message.
 	 */
-	fun getSysMessageByLangCode(key: MessageKey<*, *>, lang: String, vararg args: Any): String {
+	fun getMessageByLangCode(key: MessageKey<*, *>, lang: String, vararg args: Any): String {
 		val message = messages[lang]?.get(key)
 		val text = message?.let { String.format(it, *args) } ?: return key.rc()
 		return text
@@ -285,5 +303,4 @@ open class LangMan<P : IMessageProvider<C>, C> private constructor(
 	) {
 		convertToFinalType[C::class.java] = converter as (Any) -> Any
 	}
-
 }
