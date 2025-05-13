@@ -1,12 +1,12 @@
 package net.ririfa.langman
 
-class LangManBuilder<C : Any> private constructor(
+class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
     private val actualC: Class<C>,
 ) {
     companion object {
         @JvmStatic
-        fun <C : Any> new(actualC: Class<C>): LangManBuilder<C> {
-            val builder = LangManBuilder<C>(actualC)
+        fun <E : IMessageProvider<C>, C : Any> new(actualC: Class<C>): LangManBuilder<E, C> {
+            val builder = LangManBuilder<E, C>(actualC)
             return builder
         }
     }
@@ -14,58 +14,75 @@ class LangManBuilder<C : Any> private constructor(
     private lateinit var type: InitType
     private lateinit var resource: String
     private lateinit var file: String
-    private lateinit var key: MessageKey<*, C>
-    private lateinit var textFactory: TextFactory<*>
+    private lateinit var key: MessageKey<E, C>
+    private lateinit var textFactory: TextFactory<C>
     private var isDebug: Boolean = false
+    private var scope: LangManScope = LangManScope.KEY_CLASS
+    private var customKey: Any? = null
 
-    fun withType(type: InitType): LangManBuilder<C> {
+    fun withType(type: InitType): LangManBuilder<E, C> {
         this.type = type
         return this
     }
 
-    fun fromResource(resource: String): LangManBuilder<C> {
+    fun fromResource(resource: String): LangManBuilder<E, C> {
         this.resource = resource
         return this
     }
 
-    fun toFile(file: String): LangManBuilder<C> {
+    fun toFile(file: String): LangManBuilder<E, C> {
         this.file = file
         return this
     }
 
-    fun withMessageKey(key: MessageKey<*, C>): LangManBuilder<C> {
+    fun withMessageKey(key: MessageKey<E, C>): LangManBuilder<E, C> {
         this.key = key
         return this
     }
 
-    fun debug(enabled: Boolean): LangManBuilder<C> {
+    fun debug(enabled: Boolean): LangManBuilder<E, C> {
         this.isDebug = enabled
         return this
     }
 
-    fun <T : Any> registerTextFactory(factory: TextFactory<T>): LangManBuilder<C> {
-        require(factory.clazz == actualC) {
-            "TextFactory<T> must match LangManBuilder<C>'s actual type: expected $actualC but got ${factory.clazz}"
-        }
+    fun registerTextFactory(factory: TextFactory<C>): LangManBuilder<E, C> {
         this.textFactory = factory
         return this
     }
 
-    fun build(): LangMan {
+    fun register(scope: LangManScope, key: Any? = null): LangManBuilder<E, C> {
+        this.scope = scope
+        this.customKey = key
+        return this
+    }
+
+    fun build(): LangMan<E, C> {
+        if (actualC == String::class.java && !this::textFactory.isInitialized) {
+            @Suppress("UNCHECKED_CAST")
+            this.textFactory = defaultStringFactory as TextFactory<C>
+        }
+
         val langMan = LangMan(
             isDebug = isDebug,
             textFactory = textFactory,
+            expectedMKType = key::class.java
         )
-        if (actualC == String::class.java && !this::textFactory.isInitialized) {
-            this.textFactory = object : TextFactory<String> {
-                override val clazz = String::class.java
-                override fun invoke(text: String): String {
-                    return text
-                }
+
+        LangManContext.register(
+            langMan = langMan,
+            scope = scope,
+            key = when (scope) {
+                LangManScope.KEY_CLASS -> key::class.java
+                LangManScope.CUSTOM -> customKey
+                LangManScope.CALLER_CONTEXT -> null
             }
-        }
-        LangManContext.register(key::class.java, langMan)
-        LangManContext.registerScoped(key::class.java, langMan)
+        )
+
         return langMan
+    }
+
+    private val defaultStringFactory = object : TextFactory<String> {
+        override val clazz = String::class.java
+        override fun invoke(text: String): String = text
     }
 }

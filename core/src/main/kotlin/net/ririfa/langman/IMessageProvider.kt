@@ -22,6 +22,7 @@ interface IMessageProvider<C> {
      * @param args Optional arguments used to format the message.
      * @return The formatted localized message content.
      */
+    @Deprecated("Use getMessage(key, Map) or getMessage(key, T, transform) instead", ReplaceWith("getMessage(key, mapOf(...))"), DeprecationLevel.WARNING)
     fun getMessage(key: MessageKey<*, *>, vararg args: Any): C
 
     /**

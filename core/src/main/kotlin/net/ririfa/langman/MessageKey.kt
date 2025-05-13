@@ -15,7 +15,7 @@ interface MessageKey<E : IMessageProvider<C>, C : Any> {
      * @return The text component of this message key.
      */
     fun c(): C {
-        val langMan = LangManContext.getByKeyClass(this::class.java)
+        val langMan = LangManContext.getByKeyClass<E, C>(this::class.java)
             ?: error("No LangMan registered for ${this::class.java.name}")
 
         val factory = langMan.textFactory
@@ -26,7 +26,7 @@ interface MessageKey<E : IMessageProvider<C>, C : Any> {
         }
 
         @Suppress("UNCHECKED_CAST")
-        return (factory as TextFactory<C>).invoke(this::class.java.simpleName)
+        return factory.invoke(this::class.java.simpleName)
     }
 
     /**

@@ -10,8 +10,18 @@ import org.slf4j.Logger
  * @param level The log level at which the message should be logged. Defaults to [LogLevel.INFO].
  */
 @JvmOverloads
-fun Logger.logIfDebug(message: String, level: LogLevel = LogLevel.INFO) {
-    if (LangManContext.getScoped()?.isDebug == true) {
+fun <E : IMessageProvider<C>, C : Any>Logger.logIfDebug(
+    message: String,
+    scope: LangManScope = LangManScope.CALLER_CONTEXT,
+    key: Any? = null,
+    level: LogLevel = LogLevel.INFO
+) {
+    val langMan = LangManContext.getBy<E, C>(
+        scope = scope,
+        key = key
+    )
+
+    if (langMan?.isDebug == true) {
         when (level) {
             LogLevel.INFO -> info(message)
             LogLevel.WARN -> warn(message)
@@ -22,6 +32,7 @@ fun Logger.logIfDebug(message: String, level: LogLevel = LogLevel.INFO) {
     }
 }
 
+
 /**
  * Represents the severity level of a log message.
  */
@@ -30,11 +41,15 @@ enum class LogLevel {
      * Represents an informational message log level.
      * Typically used to log general information about the application's progress or state.
      */
-    INFO, /**
+    INFO,
+
+    /**
      * Represents a log level used to indicate potentially harmful situations.
      * Typically used to log warnings that are notable but not necessarily an error.
      */
-    WARN, /**
+    WARN,
+
+    /**
      * Represents a log level used to indicate error messages.
      * This log level is typically used for severe issues that
      * require immediate attention or might lead to application failure.
