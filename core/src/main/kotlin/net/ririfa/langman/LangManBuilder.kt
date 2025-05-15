@@ -29,8 +29,6 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
     private lateinit var key: MessageKey<E, C>
     private lateinit var textFactory: TextFactory<C>
     private var isDebug: Boolean = false
-    private var scope: LangManScope = LangManScope.KEY_CLASS
-    private var customKey: Any? = null
     private val langs: MutableList<String> = mutableListOf()
 
     fun withType(type: FileLoader<*>): LangManBuilder<E, C> {
@@ -69,12 +67,6 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
         return this
     }
 
-    fun register(scope: LangManScope, key: Any? = null): LangManBuilder<E, C> {
-        this.scope = scope
-        this.customKey = key
-        return this
-    }
-
     fun build(): LangMan<E, C> {
         if (actualC == String::class.java && !this::textFactory.isInitialized) {
             @Suppress("UNCHECKED_CAST")
@@ -97,15 +89,7 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
             type.fileExtension
         )
 
-        LangManContext.register(
-            langMan = langMan,
-            scope = scope,
-            key = when (scope) {
-                LangManScope.KEY_CLASS -> key::class.java
-                LangManScope.CUSTOM -> customKey
-                LangManScope.CALLER_CONTEXT -> null
-            }
-        )
+        LangManContext.register(langMan)
 
         return langMan
     }

@@ -1,6 +1,7 @@
 package net.ririfa.langman
 
 import net.ririfa.langman.LangMan.Companion.logger
+import net.ririfa.langman.LangMan.LogLevel
 
 /**
  * Represents a key for a localized message.
@@ -19,11 +20,6 @@ interface MessageKey<E : IMessageProvider<C>, C : Any> {
             ?: error("No LangMan registered for ${this::class.java.name}")
 
         val factory = langMan.textFactory
-        val clazz = factory.clazz
-
-        require(clazz == this::class.java || clazz.isAssignableFrom(this::class.java)) {
-            "TextFactory type mismatch: factory for $clazz but MessageKey is ${this::class.java}"
-        }
 
         @Suppress("UNCHECKED_CAST")
         return factory.invoke(this::class.java.simpleName)

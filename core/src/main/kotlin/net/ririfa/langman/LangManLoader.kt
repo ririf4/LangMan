@@ -33,11 +33,13 @@ object LangManLoader {
                     logger.info("Loading from file: $file")
                     loader.load(file)
                 }
+
                 resourceExt != null -> {
                     val stream = LangManLoader::class.java.getResourceAsStream("$resourcePath/$lang.$resourceExt")!!
                     logger.info("Loading from resource: $resourcePath/$lang.$resourceExt")
                     loader.loadFromStream(stream)
                 }
+
                 else -> {
                     logger.warn("No language file found for $lang (neither file nor resource)")
                     continue
@@ -70,6 +72,7 @@ object LangManLoader {
                     val subMap = value.filterKeys { it is String } as Map<String, Any>
                     result.putAll(flattenMap(subMap, fullKey))
                 }
+
                 is List<*> -> value.forEachIndexed { index, item ->
                     if (item is String) result["$fullKey.item${index + 1}".lowercase()] = item
                 }

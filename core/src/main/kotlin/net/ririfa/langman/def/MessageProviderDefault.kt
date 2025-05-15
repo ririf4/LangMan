@@ -24,8 +24,7 @@ import kotlin.reflect.full.isSubclassOf
 // Made by me!
 abstract class MessageProviderDefault<E : MessageProviderDefault<E, C>, C : Any>(
     val clazz: Class<C>,
-    private val scope: LangManScope = LangManScope.CALLER_CONTEXT,
-    private val customKey: Class<out MessageKey<E, C>>? = null
+    private val expectedMKType: Class<out MessageKey<E, C>>,
 ) : IMessageProvider<C> {
     /**
      * Retrieves the `LangMan` instance.
@@ -34,8 +33,8 @@ abstract class MessageProviderDefault<E : MessageProviderDefault<E, C>, C : Any>
      * @return The active `LangMan` instance.
      */
     val langMan: LangMan<E, C>
-        get() = LangManContext.getBy<E, C>(scope, customKey)
-            ?: throw IllegalStateException("LangMan instance not found for scope=$scope key=$customKey")
+        get() = LangManContext.getByKeyClass<E, C>(expectedMKType)
+            ?: throw IllegalStateException("Cannot find active instance of LangMan for ${expectedMKType.simpleName}")
 
     /**
      * Retrieves a formatted localized message using sequential arguments.
