@@ -1,5 +1,7 @@
 package net.ririfa.langman
 
+import java.nio.file.Path
+
 class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
     private val actualC: Class<C>,
 ) {
@@ -9,18 +11,29 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
             val builder = LangManBuilder<E, C>(actualC)
             return builder
         }
+
+        inline fun <E : IMessageProvider<C>, reified C : Any> new(): LangManBuilder<E, C> {
+            return new<E, C>(C::class.java)
+        }
+
+        inline fun <E : IMessageProvider<C>, reified C : Any> new(
+            block: LangManBuilder<E, C>.() -> Unit
+        ): LangManBuilder<E, C> {
+            return new<E, C>().apply(block)
+        }
     }
 
-    private lateinit var type: InitType
+    private lateinit var type: FileLoader<*>
     private lateinit var resource: String
-    private lateinit var file: String
+    private lateinit var out: Path
     private lateinit var key: MessageKey<E, C>
     private lateinit var textFactory: TextFactory<C>
     private var isDebug: Boolean = false
     private var scope: LangManScope = LangManScope.KEY_CLASS
     private var customKey: Any? = null
+    private val langs: MutableList<String> = mutableListOf()
 
-    fun withType(type: InitType): LangManBuilder<E, C> {
+    fun withType(type: FileLoader<*>): LangManBuilder<E, C> {
         this.type = type
         return this
     }
@@ -30,8 +43,8 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
         return this
     }
 
-    fun toFile(file: String): LangManBuilder<E, C> {
-        this.file = file
+    fun toPath(out: Path): LangManBuilder<E, C> {
+        this.out = out
         return this
     }
 
@@ -42,6 +55,12 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
 
     fun debug(enabled: Boolean): LangManBuilder<E, C> {
         this.isDebug = enabled
+        return this
+    }
+
+    fun withLanguage(langs: List<String>): LangManBuilder<E, C> {
+        this.langs.clear()
+        this.langs.addAll(langs)
         return this
     }
 
@@ -66,6 +85,16 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
             isDebug = isDebug,
             textFactory = textFactory,
             expectedMKType = key::class.java
+        )
+
+        LangManLoader.loadInto(
+            langMan,
+            type,
+            resource,
+            out,
+            langs,
+            key::class.java,
+            type.fileExtension
         )
 
         LangManContext.register(

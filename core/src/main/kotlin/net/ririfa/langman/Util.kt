@@ -10,7 +10,7 @@ import org.slf4j.Logger
  * @param level The log level at which the message should be logged. Defaults to [LogLevel.INFO].
  */
 @JvmOverloads
-fun <E : IMessageProvider<C>, C : Any>Logger.logIfDebug(
+fun <E : IMessageProvider<C>, C : Any> Logger.logIfDebug(
     message: String,
     scope: LangManScope = LangManScope.CALLER_CONTEXT,
     key: Any? = null,

@@ -4,6 +4,7 @@ package net.ririfa.langman
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.util.Locale
 import kotlin.reflect.full.isSubclassOf
 
 class LangMan<E : IMessageProvider<C>, C : Any> internal constructor(
@@ -57,7 +58,7 @@ class LangMan<E : IMessageProvider<C>, C : Any> internal constructor(
     val convertToFinalType = mutableMapOf<Class<*>, (Any) -> Any>()
 
     @JvmOverloads
-    fun <K, V> getMessage(key: MessageKey<*, *>, argsComplete: Map<K, V>, lang: String = "en"): C {
+    fun <K, V> getMessage(key: MessageKey<*, *>, argsComplete: Map<K, V>, lang: String = Locale.getDefault().language): C {
         require(key::class.isSubclassOf(expectedMKType.kotlin)) { "Unexpected MessageKey type: ${key::class}. Expected: $expectedMKType" }
         var message = messages[lang]?.get(key) ?: key.rc()
 

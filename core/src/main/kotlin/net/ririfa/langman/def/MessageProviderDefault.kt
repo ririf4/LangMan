@@ -25,7 +25,7 @@ import kotlin.reflect.full.isSubclassOf
 abstract class MessageProviderDefault<E : MessageProviderDefault<E, C>, C : Any>(
     val clazz: Class<C>,
     private val scope: LangManScope = LangManScope.CALLER_CONTEXT,
-    private val customKey: Any? = null
+    private val customKey: Class<out MessageKey<E, C>>? = null
 ) : IMessageProvider<C> {
     /**
      * Retrieves the `LangMan` instance.

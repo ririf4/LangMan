@@ -11,8 +11,10 @@ plugins {
     `maven-publish`
 }
 
+val skip = listOf("langman-core", "langman-ext.yaml", "langman-json", "langman-toml")
+
 val coreVer = "2.0.0-SNAPSHOT"
-val yamlVer = "2.0.0"
+val yamlVer = "2.0.0-SNAPSHOT"
 val jsonVer = "2.0.0"
 val tomlVer = "2.0.0"
 
@@ -20,9 +22,9 @@ allprojects {
     group = "net.ririfa"
     version = when (name) {
         "langman-core" -> coreVer
-        "langman-yaml" -> yamlVer
-        "langman-json" -> jsonVer
-        "langman-toml" -> tomlVer
+        "langman-ext.yaml" -> yamlVer
+//        "langman-json" -> jsonVer
+//        "langman-toml" -> tomlVer
         else -> "1.0.0"
     }
 
@@ -32,10 +34,9 @@ allprojects {
 
     afterEvaluate {
         dependencies {
-            implementation("org.jetbrains.kotlin:kotlin-reflect:2.1.20")
-//        implementation("org.yaml:snakeyaml:2.3")
+            api("org.jetbrains.kotlin:kotlin-reflect:2.1.20")
 //        implementation("io.hotmoka:toml4j:0.7.3")
-            implementation("org.slf4j:slf4j-api:2.1.0-alpha1")
+            api("org.slf4j:slf4j-api:2.1.0-alpha1")
 //        implementation("com.google.code.gson:gson:2.11.0")
         }
     }
@@ -101,7 +102,9 @@ subprojects {
             val exists = connection.responseCode == HttpURLConnection.HTTP_OK
             connection.disconnect()
 
-            if (exists) {
+            val isSkip = ver == "SKIP"
+
+            if (exists && !isSkip) {
                 logger.lifecycle("Artifact already exists at $artifactUrl, skipping publish.")
                 false
             } else {
@@ -159,6 +162,15 @@ subprojects {
                     password = findProperty("nxPW").toString()
                 }
             }
+        }
+    }
+}
+
+project(":langman-ext.yaml") {
+    afterEvaluate {
+        dependencies {
+            api("org.yaml:snakeyaml:2.3")
+            compileOnly(project(":langman-core"))
         }
     }
 }
