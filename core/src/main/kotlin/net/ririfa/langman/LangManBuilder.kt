@@ -29,6 +29,7 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
     private lateinit var key: MessageKey<E, C>
     private lateinit var textFactory: TextFactory<C>
     private var isDebug: Boolean = false
+    private var autoUpdate: Boolean = false
     private val langs: MutableList<String> = mutableListOf()
 
     fun withType(type: FileLoader<*>): LangManBuilder<E, C> {
@@ -67,6 +68,11 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
         return this
     }
 
+    fun autoUpdateIfNeeded(enabled: Boolean): LangManBuilder<E, C> {
+        this.autoUpdate = enabled
+        return this
+    }
+
     fun build(): LangMan<E, C> {
         if (actualC == String::class.java && !this::textFactory.isInitialized) {
             @Suppress("UNCHECKED_CAST")
@@ -90,6 +96,10 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
         )
 
         LangManContext.register(langMan)
+
+        if (autoUpdate) {
+            FileAutoUpdater.updateIfNeeded()
+        }
 
         return langMan
     }

@@ -2,7 +2,10 @@
 
 package net.ririfa.langman.def
 
-import net.ririfa.langman.*
+import net.ririfa.langman.IMessageProvider
+import net.ririfa.langman.LangMan
+import net.ririfa.langman.LangManContext
+import net.ririfa.langman.MessageKey
 import kotlin.reflect.full.isSubclassOf
 
 /**
