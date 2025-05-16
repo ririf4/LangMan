@@ -102,12 +102,13 @@ subprojects {
             val exists = connection.responseCode == HttpURLConnection.HTTP_OK
             connection.disconnect()
 
-            val isSkip = ver == "SKIP"
-
-            if (exists && !isSkip) {
+            if (exists) {
                 logger.lifecycle("Artifact already exists at $artifactUrl, skipping publish.")
                 false
             } else {
+                if (artifactId == "langman-ext.yaml") {
+                    return@onlyIf false
+                }
                 logger.lifecycle("Artifact not found at $artifactUrl, proceeding with publish.")
                 true
             }
