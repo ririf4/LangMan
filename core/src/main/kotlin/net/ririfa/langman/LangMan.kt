@@ -81,7 +81,15 @@ class LangMan<E : IMessageProvider<C>, C : Any> internal constructor(
     val convertToFinalType = mutableMapOf<Class<*>, (Any) -> Any>()
 
     @JvmOverloads
-    fun <K, V> getMessage(key: MessageKey<*, *>, argsComplete: Map<K, V>, lang: String = Locale.getDefault().language): C {
+    fun getMessage(key: MessageKey<E, C>, lang: String = Locale.getDefault().language): C {
+        require(key::class.isSubclassOf(expectedMKType.kotlin)) { "Unexpected MessageKey type: ${key::class}. Expected: $expectedMKType" }
+        var message = messages[lang]?.get(key) ?: key.rc()
+
+        return textFactory.invoke(message)
+    }
+
+    @JvmOverloads
+    fun <K, V> getMessage(key: MessageKey<E, C>, argsComplete: Map<K, V>, lang: String = Locale.getDefault().language): C {
         require(key::class.isSubclassOf(expectedMKType.kotlin)) { "Unexpected MessageKey type: ${key::class}. Expected: $expectedMKType" }
         var message = messages[lang]?.get(key) ?: key.rc()
 

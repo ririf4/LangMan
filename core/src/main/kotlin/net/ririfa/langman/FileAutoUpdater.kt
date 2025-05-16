@@ -1,3 +1,5 @@
+@file:Suppress("DuplicatedCode")
+
 package net.ririfa.langman
 
 import org.slf4j.Logger
@@ -30,16 +32,16 @@ object FileAutoUpdater {
                 // parse resource side
                 val resourceData = runCatching { loader.parse(resourceStream) }.getOrNull()
                 val resourceFlat = runCatching { loader.flatten(resourceData!!) }.getOrNull()
-                val resourceVersion = resourceFlat?.get("version")?.toIntOrNull()
+                val resourceVersionStr = resourceFlat?.get("version")?.toString()
+                val resourceVersion = parseSemVer(resourceVersionStr)
 
                 if (resourceVersion == null) {
-                    logger.warn("No valid version found in resource: $resourcePath")
+                    logger.warn("Invalid or missing version in resource: $resourcePath")
                     continue
                 }
 
                 if (!Files.exists(outPath)) {
-                    logger.info("Language file missing, copying: $outPath (version $resourceVersion)")
-                    resourceStream.reset()
+                    logger.info("Language file missing, copying: $outPath (version $resourceVersionStr)")
                     Files.copy(
                         LangManLoader::class.java.getResourceAsStream(resourcePath)!!,
                         outPath
@@ -50,19 +52,38 @@ object FileAutoUpdater {
                 val fileStream = Files.newInputStream(outPath)
                 val fileData = runCatching { loader.parse(fileStream) }.getOrNull()
                 val fileFlat = runCatching { loader.flatten(fileData!!) }.getOrNull()
-                val fileVersion = fileFlat?.get("version")?.toIntOrNull()
+                val fileVersionStr = fileFlat?.get("version")?.toString()
+                val fileVersion = parseSemVer(fileVersionStr)
 
-                if (fileVersion == null || resourceVersion > fileVersion) {
-                    logger.info("Updating $outPath from v${fileVersion ?: "?"} to v$resourceVersion")
+                if (fileVersion == null || compareSemVer(resourceVersion, fileVersion) > 0) {
+                    logger.info("Updating $outPath from v${fileVersionStr ?: "?"} to v$resourceVersionStr")
                     Files.copy(
                         LangManLoader::class.java.getResourceAsStream(resourcePath)!!,
                         outPath,
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING
                     )
                 } else {
-                    logger.debug("No update needed for {} (version {} >= {})", outPath, fileVersion, resourceVersion)
+                    logger.debug("No update needed for {} (version {} >= {})", outPath, fileVersionStr, resourceVersionStr)
                 }
             }
         }
     }
+
+    private fun parseSemVer(version: String?): List<Int>? {
+        return version
+            ?.split('.')
+            ?.mapNotNull { it.toIntOrNull() }
+            ?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun compareSemVer(a: List<Int>, b: List<Int>): Int {
+        val maxLength = maxOf(a.size, b.size)
+        for (i in 0 until maxLength) {
+            val av = a.getOrNull(i) ?: 0
+            val bv = b.getOrNull(i) ?: 0
+            if (av != bv) return av - bv
+        }
+        return 0
+    }
+
 }

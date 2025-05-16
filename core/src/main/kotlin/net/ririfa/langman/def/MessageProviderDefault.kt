@@ -64,6 +64,18 @@ abstract class MessageProviderDefault<E : MessageProviderDefault<E, C>, C : Any>
         return textFactory.invoke(text)
     }
 
+    override fun getMessage(key: MessageKey<*, *>): C {
+        val messages = langMan.messages
+        val expectedMKType = langMan.expectedMKType
+        val textFactory = langMan.textFactory
+
+        require(key::class.isSubclassOf(expectedMKType.kotlin)) { "Unexpected MessageKey type: ${key::class}. Expected: $expectedMKType" }
+        val lang = this.getLanguage()
+        val message = messages[lang]?.get(key) ?: key.rc()
+
+        return textFactory.invoke(message)
+    }
+
     /**
      * Retrieves a formatted localized message using a map of named arguments.
      *

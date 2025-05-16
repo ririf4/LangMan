@@ -26,6 +26,14 @@ interface IMessageProvider<C> {
     fun getMessage(key: MessageKey<*, *>, vararg args: Any): C
 
     /**
+     * Retrieves a formatted localized message using a key.
+     *
+     * @param key The message key.
+     * @return The formatted localized message content.
+     */
+    fun getMessage(key: MessageKey<*, *>): C
+
+    /**
      * Retrieves a formatted localized message using a map of named arguments.
      *
      * This method allows for explicit placeholder replacement (e.g., `%player%`, `%id%`).
@@ -34,7 +42,7 @@ interface IMessageProvider<C> {
      * @param argsComplete A map of placeholders and their corresponding values.
      * @return The formatted localized message content.
      */
-    fun <K, V> getMessage(key: MessageKey<*, *>, argsComplete: Map<K, V>): C
+    fun <K, V> getMessage(key: MessageKey<*, *>, argsComplete: Map<K, V> = emptyMap()): C
 
     /**
      * Retrieves a formatted localized message using an intermediate data type.
