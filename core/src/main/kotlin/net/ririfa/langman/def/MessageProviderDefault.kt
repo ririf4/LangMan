@@ -172,38 +172,6 @@ abstract class MessageProviderDefault<E : MessageProviderDefault<E, C>, C : Any>
     }
 
     /**
-     * Retrieves a localized message of type [G], applies placeholder replacement, and then converts it into the default class type [C].
-     *
-     * This method first retrieves a localized message of type [G] using [getMsgWithOther], applies the necessary placeholder replacements,
-     * and then converts it into the class-level default type [C] using the registered converter.
-     *
-     * @param G The intermediate type used for processing before conversion to [C].
-     * @param key The [MessageKey] identifying which localized message to retrieve.
-     * @param argsComplete A map of placeholders (keys) and their respective replacement values.
-     * @return The localized message converted into the class-defined type [C].
-     * @throws IllegalStateException if no converter is found for type [C].
-     * @throws IllegalArgumentException if message conversion fails due to a type mismatch.
-     */
-    @Suppress("UNCHECKED_CAST")
-    @JvmOverloads
-    inline fun <reified G : Any> getMsg(
-        key: MessageKey<E, C>,
-        argsComplete: Map<String, G> = emptyMap()
-    ): C {
-        val converter = langMan.convertToFinalType[clazz]
-            ?: throw IllegalStateException("No converter found for type $clazz")
-
-        val messageG: G = getMsgWithOther(key, argsComplete)
-
-        return try {
-            converter.invoke(messageG) as? C
-                ?: throw IllegalArgumentException("Failed to convert message: Expected $clazz, but got ${messageG::class}")
-        } catch (e: ClassCastException) {
-            throw IllegalArgumentException("Failed to convert message: Expected $clazz, but got ${messageG::class}", e)
-        }
-    }
-
-    /**
      * Retrieves the raw message string for the provided key without formatting.
      *
      * @param key The message key.

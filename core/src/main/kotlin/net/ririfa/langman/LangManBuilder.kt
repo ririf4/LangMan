@@ -1,5 +1,6 @@
 package net.ririfa.langman
 
+import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -119,20 +120,42 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
     }
 
     private fun extractMissingLanguageFiles() {
+        Files.createDirectories(out)
+
         for (lang in langs) {
+            val found: MutableList<Pair<String, InputStream>> = mutableListOf()
+
             for (ext in type.fileExtensions) {
-                val resourcePath = "$resource/$lang.$ext"
-                val outputPath = out.resolve("$lang.$ext")
+                val path = "${resource.trimEnd('/')}/$lang.$ext"
+                val stream = LangManLoader::class.java.getResourceAsStream(path)
+                if (stream != null) {
+                    found.add(path to stream)
+                }
+            }
 
-                if (Files.exists(outputPath)) continue
-
-                val stream = LangManLoader::class.java.getResourceAsStream(resourcePath)
-                if (stream == null) {
-                    // optional: debug log if needed
-                    continue
+            when (found.size) {
+                0 -> {
+                    if (isDebug) {
+                        println("[LangMan] Missing resource: ${resource.trimEnd('/')}/$lang.[${type.fileExtensions.joinToString()}]")
+                    }
                 }
 
-                Files.copy(stream, outputPath)
+                1 -> {
+                    val (path, stream) = found.first()
+                    val outputPath = out.resolve(path.substringAfterLast('/'))
+                    Files.createDirectories(outputPath.parent)
+                    if (Files.notExists(outputPath)) {
+                        stream.use {
+                            Files.copy(it, outputPath)
+                        }
+                    }
+                }
+
+                else -> {
+                    found.forEach { it.second.close() }
+                    val paths = found.joinToString { it.first }
+                    error("Multiple language files found for '$lang': $paths. Only one extension is allowed per language.")
+                }
             }
         }
     }

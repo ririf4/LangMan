@@ -1,30 +1,28 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.jetbrains.dokka.gradle.tasks.DokkaGeneratePublicationTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.jar.JarFile
 
 plugins {
     // Kotlin
     kotlin("jvm") version "2.1.20"
     kotlin("plugin.serialization") version "2.1.20"
     id("org.jetbrains.dokka") version "2.0.0"
+    id("com.gradleup.shadow") version "9.0.0-beta15" apply false
     `maven-publish`
 }
 
-val skip = listOf("langman-core", "langman-ext.yaml", "langman-json", "langman-toml")
-
-val coreVer = "2.0.0-SNAPSHOT"
-val yamlVer = "2.0.0-SNAPSHOT"
-val jsonVer = "2.0.0"
-val tomlVer = "2.0.0"
+val coreVer = "2.0.0"
+val yamlVer = "2.0.0"
 
 allprojects {
     group = "net.ririfa"
     version = when (name) {
         "langman-core" -> coreVer
         "langman-ext.yaml" -> yamlVer
-//        "langman-json" -> jsonVer
-//        "langman-toml" -> tomlVer
         else -> "1.0.0"
     }
 
@@ -35,18 +33,40 @@ allprojects {
     afterEvaluate {
         dependencies {
             api("org.jetbrains.kotlin:kotlin-reflect:2.1.20")
-//        implementation("io.hotmoka:toml4j:0.7.3")
             api("org.slf4j:slf4j-api:2.1.0-alpha1")
-//        implementation("com.google.code.gson:gson:2.11.0")
         }
     }
 }
 
 subprojects {
     apply(plugin = "kotlin")
-    apply(plugin = "org.jetbrains.kotlin.plugin.serialization")
     apply(plugin = "org.jetbrains.dokka")
     apply(plugin = "maven-publish")
+    apply(plugin = "com.gradleup.shadow")
+
+    gradle.projectsEvaluated {
+        val shadedAPI = configurations.getByName("shadedAPI")
+
+        shadedAPI.forEach { logger.lifecycle("Shaded API: $it") }
+
+        val artifacts = try {
+            shadedAPI.resolvedConfiguration.resolvedArtifacts
+        } catch (e: Exception) {
+            //logger.warn("Could not resolve shadedAPI in ${project.name}: ${e.message}")
+            emptySet<ResolvedArtifact>()
+        }
+
+        artifacts.forEach { artifact ->
+            logger.lifecycle("Pack: ${artifact.moduleVersion.id.group}")
+            logger.lifecycle("Name: ${artifact.moduleVersion.id.name}")
+            logger.lifecycle("Module Group: ${artifact.moduleVersion.id.module.group}")
+            logger.lifecycle("Module Name: ${artifact.moduleVersion.id.module.name}")
+            val id = artifact.moduleVersion.id
+            val notation = "${id.group}:${id.name}:${id.version}"
+            //logger.lifecycle("Automatically adding to api: $notation in ${project.name}")
+            dependencies.add("api", notation)
+        }
+    }
 
     java {
         withSourcesJar()
@@ -59,10 +79,6 @@ subprojects {
     kotlin {
         jvmToolchain {
             languageVersion.set(JavaLanguageVersion.of(17))
-        }
-
-        compilerOptions {
-            freeCompilerArgs.add("-Xjvm-default=all")
         }
     }
 
@@ -106,34 +122,96 @@ subprojects {
                 logger.lifecycle("Artifact already exists at $artifactUrl, skipping publish.")
                 false
             } else {
-                if (artifactId == "langman-ext.yaml") {
-                    return@onlyIf false
-                }
                 logger.lifecycle("Artifact not found at $artifactUrl, proceeding with publish.")
                 true
             }
         }
     }
 
+    tasks.register<Jar>("plainJar") {
+        group = "ririfa"
+        description = "Project classes only"
+        dependsOn("classes")
+        archiveClassifier.set("")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from(sourceSets.main.get().output)
+    }
+
+    tasks.register<ShadowJar>("relocatedFatJar") {
+        dependsOn("classes")
+        group = "ririfa"
+        description = "Creates a relocated fat jar containing shadedAPI dependencies"
+        archiveClassifier.set("fat")
+        configurations.add(project.configurations.getByName("shadedAPI"))
+        from(sourceSets.main.get().output)
+
+        doFirst {
+            val shaded = project.configurations.getByName("shadedAPI")
+            val artifacts = try {
+                shaded.resolvedConfiguration.resolvedArtifacts
+            } catch (e: Exception) {
+                logger.warn("Could not resolve shadedAPI: ${e.message}")
+                emptySet<ResolvedArtifact>()
+            }
+
+            artifacts.forEach { artifact ->
+                val moduleName = artifact.moduleVersion.id.name.replace("-", "_")
+                val jarFile = artifact.file
+
+                val classPackages = JarFile(jarFile).use { jar ->
+                    jar.entries().asSequence()
+                        .filter { it.name.endsWith(".class") && !it.name.startsWith("META-INF") }
+                        .mapNotNull { entry ->
+                            entry.name
+                                .replace('/', '.')
+                                .removeSuffix(".class")
+                                .substringBeforeLast('.', "")
+                        }
+                        .toSet()
+                }
+
+                if (classPackages.any { it.startsWith("net.ririfa") }) {
+                    logger.lifecycle("Skipping relocation for ${artifact.moduleVersion.id} (self package detected)")
+                    return@forEach
+                }
+
+                classPackages.forEach { pkg ->
+                    val relocated = "net.ririfa.shaded.$moduleName.${pkg.replace('.', '_')}"
+                    logger.lifecycle("Relocating $pkg → $relocated")
+                    relocate(pkg, relocated)
+                }
+            }
+        }
+    }
+
+    tasks.register<Jar>("dokkaHtmlJar") {
+        group = "dokka"
+        description = "Generates HTML documentation using Dokka"
+        dependsOn(tasks.named("dokkaGeneratePublicationHtml"))
+        from(tasks.named<DokkaGeneratePublicationTask>("dokkaGeneratePublicationHtml").flatMap { it.outputDirectory })
+        archiveClassifier.set("javadoc")
+    }
+
     publishing {
         publications {
-            //maven
             create<MavenPublication>("maven") {
-
                 groupId = project.group.toString()
                 artifactId = project.name
                 version = project.version.toString()
 
-                from(components["java"])
+                artifact(tasks.named<Jar>("plainJar"))
+                artifact(tasks.named<ShadowJar>("relocatedFatJar"))
+                artifact(tasks.named<Jar>("sourcesJar"))
+                artifact(tasks.named<Jar>("dokkaHtmlJar"))
 
                 pom {
-                    name.set("LangMan")
-                    description.set("I18n library supporting multiple file types")
-                    url.set("https://github.com/ririf4/LangMan")
+                    name.set(project.name)
+                    description.set("")
+                    url.set("https://github.com/ririf4/Yacla")
                     licenses {
                         license {
-                            name.set("S1-OP")
-                            url.set("https://github.com/SwiftStorm-Studio/LICENSES/blob/main/S1-OP")
+                            name.set("MIT")
+                            url.set("https://opensource.org/license/mit")
                         }
                     }
                     developers {
@@ -144,11 +222,10 @@ subprojects {
                         }
                     }
                     scm {
-                        connection.set("scm:git:git://github.com/ririf4/LangMan.git")
-                        developerConnection.set("scm:git:ssh://github.com/ririf4/LangMan.git")
-                        url.set("https://github.com/ririf4/LangMan")
+                        connection.set("scm:git:git://github.com/ririf4/Yacla.git")
+                        developerConnection.set("scm:git:ssh://github.com/ririf4/Yacla.git")
+                        url.set("https://github.com/ririf4/Yacla")
                     }
-                    dependencies
                 }
             }
         }
@@ -167,11 +244,35 @@ subprojects {
     }
 }
 
+project("langman-core") {
+    val shadedAPI = configurations.create("shadedAPI") {
+        isTransitive = false
+        isCanBeConsumed = false
+        isCanBeResolved = true
+    }
+    tasks.named("publishMavenPublicationToMavenRepository") {
+        dependsOn("jar")
+    }
+}
+
 project(":langman-ext.yaml") {
+    val shadedAPI = configurations.create("shadedAPI") {
+        isTransitive = false
+        isCanBeConsumed = false
+        isCanBeResolved = true
+    }
+
     afterEvaluate {
         dependencies {
-            api("org.yaml:snakeyaml:2.3")
+            shadedAPI("org.yaml:snakeyaml:2.3")
             compileOnly(project(":langman-core"))
         }
+    }
+
+    tasks.named("dokkaGeneratePublicationHtml") {
+        dependsOn(":langman-core:plainJar")
+    }
+    tasks.named("publishMavenPublicationToMavenRepository") {
+        dependsOn("jar")
     }
 }

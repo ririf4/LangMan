@@ -29,7 +29,6 @@ object FileAutoUpdater {
                     continue
                 }
 
-                // parse resource side
                 val resourceData = runCatching { loader.parse(resourceStream) }.getOrNull()
                 val resourceFlat = runCatching { loader.flatten(resourceData!!) }.getOrNull()
                 val resourceVersionStr = resourceFlat?.get("version")?.toString()
