@@ -13,7 +13,7 @@ jobs:
         include:
           - name: langman-core
             dir: core
-          - name: langamn-ext.yaml
+          - name: langman-ext.yaml
             dir: ext.yaml
 
     steps:
