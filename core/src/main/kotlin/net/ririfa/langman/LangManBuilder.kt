@@ -15,7 +15,7 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
         }
 
         inline fun <E : IMessageProvider<C>, reified C : Any> new(): LangManBuilder<E, C> {
-            return new<E, C>(C::class.java)
+            return new(C::class.java)
         }
 
         inline fun <E : IMessageProvider<C>, reified C : Any> new(
@@ -30,6 +30,7 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
     private lateinit var out: Path
     private lateinit var key: Class<out MessageKey<E, C>>
     private lateinit var textFactory: TextFactory<C>
+    private var parentClass: Class<*>? = null
     private var isDebug: Boolean = false
     private var autoUpdate: Boolean = false
     private val langs: MutableList<String> = mutableListOf()
@@ -40,7 +41,7 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
     }
 
     fun fromResource(resource: String): LangManBuilder<E, C> {
-        this.resource = resource
+        this.resource = if (resource.startsWith("/")) resource else "/$resource"
         return this
     }
 
@@ -65,6 +66,11 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
         return this
     }
 
+    fun fromClass(clazz: Class<*>): LangManBuilder<E, C> {
+        this.parentClass = clazz
+        return this
+    }
+
     fun registerTextFactory(factory: TextFactory<C>): LangManBuilder<E, C> {
         this.textFactory = factory
         return this
@@ -79,6 +85,10 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
         if (actualC == String::class.java && !this::textFactory.isInitialized) {
             @Suppress("UNCHECKED_CAST")
             this.textFactory = defaultStringFactory as TextFactory<C>
+        }
+
+        if (parentClass == null) {
+            throw IllegalStateException("`parentClass` must be set.")
         }
 
         extractMissingLanguageFiles()
@@ -127,7 +137,7 @@ class LangManBuilder<E : IMessageProvider<C>, C : Any> private constructor(
 
             for (ext in type.fileExtensions) {
                 val path = "${resource.trimEnd('/')}/$lang.$ext"
-                val stream = LangManLoader::class.java.getResourceAsStream(path)
+                val stream = parentClass?.getResourceAsStream(path)
                 if (stream != null) {
                     found.add(path to stream)
                 }

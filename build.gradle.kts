@@ -1,22 +1,19 @@
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.dokka.gradle.tasks.DokkaGeneratePublicationTask
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.net.HttpURLConnection
 import java.net.URI
-import java.util.jar.JarFile
 
 plugins {
     // Kotlin
-    kotlin("jvm") version "2.1.20"
-    kotlin("plugin.serialization") version "2.1.20"
+    kotlin("jvm") version "2.2.21"
     id("org.jetbrains.dokka") version "2.0.0"
-    id("com.gradleup.shadow") version "9.0.0-beta15" apply false
+    id("com.gradleup.shadow") version "9.2.2"
     `maven-publish`
 }
 
-val coreVer = "2.0.0"
-val yamlVer = "2.0.0"
+val coreVer = "2.0.3"
+val yamlVer = "2.0.1"
 
 allprojects {
     group = "net.ririfa"
@@ -32,7 +29,7 @@ allprojects {
 
     afterEvaluate {
         dependencies {
-            api("org.jetbrains.kotlin:kotlin-reflect:2.1.20")
+            api("org.jetbrains.kotlin:kotlin-reflect:2.2.21")
             api("org.slf4j:slf4j-api:2.1.0-alpha1")
         }
     }
@@ -44,57 +41,36 @@ subprojects {
     apply(plugin = "maven-publish")
     apply(plugin = "com.gradleup.shadow")
 
-    gradle.projectsEvaluated {
-        val shadedAPI = configurations.getByName("shadedAPI")
-
-        shadedAPI.forEach { logger.lifecycle("Shaded API: $it") }
-
-        val artifacts = try {
-            shadedAPI.resolvedConfiguration.resolvedArtifacts
-        } catch (e: Exception) {
-            //logger.warn("Could not resolve shadedAPI in ${project.name}: ${e.message}")
-            emptySet<ResolvedArtifact>()
-        }
-
-        artifacts.forEach { artifact ->
-            logger.lifecycle("Pack: ${artifact.moduleVersion.id.group}")
-            logger.lifecycle("Name: ${artifact.moduleVersion.id.name}")
-            logger.lifecycle("Module Group: ${artifact.moduleVersion.id.module.group}")
-            logger.lifecycle("Module Name: ${artifact.moduleVersion.id.module.name}")
-            val id = artifact.moduleVersion.id
-            val notation = "${id.group}:${id.name}:${id.version}"
-            //logger.lifecycle("Automatically adding to api: $notation in ${project.name}")
-            dependencies.add("api", notation)
+    when (name) {
+        "langman-ext.yaml" -> {
+            afterEvaluate {
+                dependencies {
+                    compileOnly(project(":langman-core"))
+                }
+            }
         }
     }
 
-    java {
-        withSourcesJar()
-        withJavadocJar()
+    java { withSourcesJar() }
 
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
+    kotlin { jvmToolchain { languageVersion.set(JavaLanguageVersion.of(17)) } }
 
-    kotlin {
-        jvmToolchain {
-            languageVersion.set(JavaLanguageVersion.of(17))
+    tasks.withType<KotlinCompile> { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }
+
+    tasks.withType<JavaCompile> { options.release.set(17) }
+
+    tasks.shadowJar {
+        archiveClassifier.set("all")
+
+        dependencies {
+            exclude(dependency("org.jetbrains.kotlin:.*"))
+            exclude(dependency("org.jetbrains.kotlinx:.*"))
+            exclude(dependency("org.jetbrains:annotations"))
         }
-    }
 
-    tasks.withType<KotlinCompile> {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
-
-    tasks.withType<JavaCompile> {
-        options.release.set(17)
-    }
-
-    tasks.named<Jar>("jar") {
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-        archiveClassifier.set("")
+        exclude("META-INF/*.kotlin_module")
+        exclude("META-INF/services/*kotlin*")
+        exclude("META-INF/*kotlin*")
     }
 
     tasks.withType<PublishToMavenRepository>().configureEach {
@@ -128,65 +104,7 @@ subprojects {
         }
     }
 
-    tasks.register<Jar>("plainJar") {
-        group = "ririfa"
-        description = "Project classes only"
-        dependsOn("classes")
-        archiveClassifier.set("")
-        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-        from(sourceSets.main.get().output)
-    }
-
-    tasks.register<ShadowJar>("relocatedFatJar") {
-        dependsOn("classes")
-        group = "ririfa"
-        description = "Creates a relocated fat jar containing shadedAPI dependencies"
-        archiveClassifier.set("fat")
-        configurations.add(project.configurations.getByName("shadedAPI"))
-        from(sourceSets.main.get().output)
-
-        doFirst {
-            val shaded = project.configurations.getByName("shadedAPI")
-            val artifacts = try {
-                shaded.resolvedConfiguration.resolvedArtifacts
-            } catch (e: Exception) {
-                logger.warn("Could not resolve shadedAPI: ${e.message}")
-                emptySet<ResolvedArtifact>()
-            }
-
-            artifacts.forEach { artifact ->
-                val moduleName = artifact.moduleVersion.id.name.replace("-", "_")
-                val jarFile = artifact.file
-
-                val classPackages = JarFile(jarFile).use { jar ->
-                    jar.entries().asSequence()
-                        .filter { it.name.endsWith(".class") && !it.name.startsWith("META-INF") }
-                        .mapNotNull { entry ->
-                            entry.name
-                                .replace('/', '.')
-                                .removeSuffix(".class")
-                                .substringBeforeLast('.', "")
-                        }
-                        .toSet()
-                }
-
-                if (classPackages.any { it.startsWith("net.ririfa") }) {
-                    logger.lifecycle("Skipping relocation for ${artifact.moduleVersion.id} (self package detected)")
-                    return@forEach
-                }
-
-                classPackages.forEach { pkg ->
-                    val relocated = "net.ririfa.shaded.$moduleName.${pkg.replace('.', '_')}"
-                    logger.lifecycle("Relocating $pkg → $relocated")
-                    relocate(pkg, relocated)
-                }
-            }
-        }
-    }
-
-    tasks.register<Jar>("dokkaHtmlJar") {
-        group = "dokka"
-        description = "Generates HTML documentation using Dokka"
+    tasks.register<Jar>("javadocJar") {
         dependsOn(tasks.named("dokkaGeneratePublicationHtml"))
         from(tasks.named<DokkaGeneratePublicationTask>("dokkaGeneratePublicationHtml").flatMap { it.outputDirectory })
         archiveClassifier.set("javadoc")
@@ -199,10 +117,8 @@ subprojects {
                 artifactId = project.name
                 version = project.version.toString()
 
-                artifact(tasks.named<Jar>("plainJar"))
-                artifact(tasks.named<ShadowJar>("relocatedFatJar"))
-                artifact(tasks.named<Jar>("sourcesJar"))
-                artifact(tasks.named<Jar>("dokkaHtmlJar"))
+                from(components["java"])
+                artifact(tasks.named("javadocJar"))
 
                 pom {
                     name.set(project.name)
@@ -241,38 +157,5 @@ subprojects {
                 }
             }
         }
-    }
-}
-
-project("langman-core") {
-    val shadedAPI = configurations.create("shadedAPI") {
-        isTransitive = false
-        isCanBeConsumed = false
-        isCanBeResolved = true
-    }
-    tasks.named("publishMavenPublicationToMavenRepository") {
-        dependsOn("jar")
-    }
-}
-
-project(":langman-ext.yaml") {
-    val shadedAPI = configurations.create("shadedAPI") {
-        isTransitive = false
-        isCanBeConsumed = false
-        isCanBeResolved = true
-    }
-
-    afterEvaluate {
-        dependencies {
-            shadedAPI("org.yaml:snakeyaml:2.3")
-            compileOnly(project(":langman-core"))
-        }
-    }
-
-    tasks.named("dokkaGeneratePublicationHtml") {
-        dependsOn(":langman-core:plainJar")
-    }
-    tasks.named("publishMavenPublicationToMavenRepository") {
-        dependsOn("jar")
     }
 }

@@ -28,7 +28,7 @@ class LangMan<E : IMessageProvider<C>, C : Any> internal constructor(
         message: String,
         level: LogLevel = LogLevel.INFO
     ) {
-        if (isDebug == true) {
+        if (isDebug) {
             when (level) {
                 LogLevel.INFO -> logger.info(message)
                 LogLevel.WARN -> logger.warn(message)
@@ -83,7 +83,7 @@ class LangMan<E : IMessageProvider<C>, C : Any> internal constructor(
     @JvmOverloads
     fun getMessage(key: MessageKey<E, C>, lang: String = Locale.getDefault().language): C {
         require(key::class.isSubclassOf(expectedMKType.kotlin)) { "Unexpected MessageKey type: ${key::class}. Expected: $expectedMKType" }
-        var message = messages[lang]?.get(key) ?: key.rc()
+        val message = messages[lang]?.get(key) ?: key.rc()
 
         return textFactory.invoke(message)
     }
@@ -102,6 +102,8 @@ class LangMan<E : IMessageProvider<C>, C : Any> internal constructor(
     }
 
     fun getAvailableLanguages(): Set<String> = messages.keys
+
+    fun getAllTranslations(key: String): Map<MessageKey<E, C>, String>? = messages[key]
 
     inline fun <reified I : Any> registerReplacementLogic(
         noinline logic: (I, String, I) -> I
